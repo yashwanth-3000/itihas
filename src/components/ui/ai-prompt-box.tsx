@@ -14,7 +14,7 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ className, ...props }, ref) => (
   <textarea
     className={cn(
-      "flex w-full rounded-md border-none bg-transparent px-3 py-2.5 text-base text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] resize-none",
+      "flex w-full rounded-md border-none bg-transparent px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] resize-none",
       className
     )}
     ref={ref}
@@ -36,7 +36,7 @@ const TooltipContent = React.forwardRef<
     ref={ref}
     sideOffset={sideOffset}
     className={cn(
-      "z-50 overflow-hidden rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-white shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+      "z-50 overflow-hidden rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-xs text-gray-900 dark:text-white shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
       className
     )}
     {...props}
@@ -112,7 +112,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     };
     const sizeClasses = {
       default: "h-10 px-4 py-2",
-      sm: "h-8 px-3 text-sm",
+      sm: "h-8 px-3 text-xs",
       lg: "h-12 px-6",
       icon: "h-8 w-8 rounded-full aspect-[1/1]",
     };
@@ -180,7 +180,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     >
       <div className="flex items-center gap-2 mb-3">
         <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-        <span className="font-mono text-sm text-gray-800/80 dark:text-white/80">{formatTime(time)}</span>
+        <span className="font-mono text-xs text-gray-800/80 dark:text-white/80">{formatTime(time)}</span>
       </div>
       <div className="w-full h-10 flex items-center justify-center gap-0.5 px-4">
         {[...Array(visualizerBars)].map((_, i) => (
@@ -686,7 +686,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                       animate={{ width: "auto", opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="text-xs overflow-hidden whitespace-nowrap text-white dark:text-black flex-shrink-0"
+                      className="text-[10px] overflow-hidden whitespace-nowrap text-white dark:text-black flex-shrink-0"
                     >
                       Search
                     </motion.span>
@@ -722,7 +722,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                       animate={{ width: "auto", opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="text-xs overflow-hidden whitespace-nowrap text-white dark:text-black flex-shrink-0"
+                      className="text-[10px] overflow-hidden whitespace-nowrap text-white dark:text-black flex-shrink-0"
                     >
                       Think
                     </motion.span>
@@ -758,7 +758,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                       animate={{ width: "auto", opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="text-xs overflow-hidden whitespace-nowrap text-white dark:text-black flex-shrink-0"
+                      className="text-[10px] overflow-hidden whitespace-nowrap text-white dark:text-black flex-shrink-0"
                     >
                       Canvas
                     </motion.span>

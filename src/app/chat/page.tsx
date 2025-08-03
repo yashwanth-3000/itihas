@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { PromptInputBox } from "@/components/ui/ai-prompt-box";
-import { Moon, Sun, Bot, User } from "lucide-react";
+import { NavBar } from "@/components/ui/tubelight-navbar";
+import { Moon, Sun, Bot, User, ArrowLeft, Home, MessageCircle, Compass, BookOpen } from "lucide-react";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import AgentPlan from "@/components/ui/agent-plan";
 import { AgentWorkflow, WorkflowPlan } from "@/lib/agent-workflow";
 
@@ -17,14 +19,7 @@ interface Message {
 }
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      content: "Hello! I'm your AI assistant. I can help you with web development, data analysis, research, and more. What would you like me to work on?",
-      sender: 'bot',
-      timestamp: new Date(),
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [currentWorkflow, setCurrentWorkflow] = useState<AgentWorkflow | null>(null);
@@ -32,9 +27,29 @@ export default function ChatPage() {
   const [isThinkMode, setIsThinkMode] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const navItems = [
+    { name: 'Home', url: '/', icon: Home },
+    { name: 'Chat', url: '/chat', icon: MessageCircle },
+    { name: 'Explore', url: '/explore', icon: Compass },
+    { name: 'Comics', url: '/comics', icon: BookOpen },
+    { name: 'About', url: '/sharable-link', icon: User }
+  ];
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // Initialize messages after hydration to avoid hydration mismatch
+  useEffect(() => {
+    if (messages.length === 0) {
+      setMessages([{
+        id: '1',
+        content: "Hello! I'm your AI assistant. I can help you with web development, data analysis, research, and more. What would you like me to work on?",
+        sender: 'bot',
+        timestamp: new Date(),
+      }]);
+    }
+  }, [messages.length]);
 
   useEffect(() => {
     scrollToBottom();
@@ -191,22 +206,38 @@ export default function ChatPage() {
         ? 'bg-black text-gray-300' 
         : 'bg-white text-black'
     }`}>
+      <NavBar items={navItems} isDarkMode={isDarkMode} />
+      
+      {/* Spacer for navbar on desktop */}
+      <div className="hidden sm:block h-16"></div>
+      
       {/* Header */}
-      <div className={`sticky top-0 z-50 border-b transition-colors ${
+      <div className={`sticky top-0 sm:top-16 z-40 border-b transition-colors ${
         isDarkMode 
           ? 'bg-black/95 border-gray-800 backdrop-blur-sm' 
           : 'bg-white/95 border-gray-200 backdrop-blur-sm'
       }`}>
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-3">
+            <Link 
+              href="/"
+              className={`p-2 rounded-full transition-colors ${
+                isDarkMode 
+                  ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-200' 
+                  : 'hover:bg-gray-100 text-gray-600 hover:text-black'
+              }`}
+              aria-label="Back to home"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
             <div className={`p-2 rounded-full ${
               isDarkMode ? 'bg-gray-800' : 'bg-gray-100'
             }`}>
-              <Bot className="w-6 h-6" />
+              <Bot className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="font-semibold text-lg">AI Assistant</h1>
-              <p className={`text-sm ${
+              <h1 className="font-semibold text-sm">AI Assistant</h1>
+              <p className={`text-xs ${
                 isDarkMode ? 'text-gray-400' : 'text-gray-600'
               }`}>
                 {workflowPlan && isThinkMode
@@ -234,9 +265,9 @@ export default function ChatPage() {
       </div>
 
       {/* Chat Container */}
-      <div className="max-w-4xl mx-auto h-[calc(100vh-140px)] flex flex-col">
+      <div className="max-w-4xl mx-auto min-h-[calc(100vh-200px)] flex flex-col">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
           {messages.map((message, index) => (
             <div key={message.id}>
               <motion.div
@@ -254,13 +285,13 @@ export default function ChatPage() {
                       : 'rounded-bl-lg bg-gray-100 text-black dark:bg-gray-800 dark:text-gray-200'
                   }`}
                 >
-                  <p className="text-sm leading-relaxed">{message.content}</p>
+                  <p className="text-xs leading-relaxed">{message.content}</p>
                   {message.files && message.files.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {message.files.map((file, index) => (
                         <div
                           key={index}
-                          className={`px-2 py-1 rounded text-xs ${
+                          className={`px-2 py-1 rounded text-[10px] ${
                             message.sender === 'user'
                               ? 'bg-gray-200 text-black'
                               : 'bg-gray-200 dark:bg-gray-700 text-black dark:text-gray-200'
@@ -271,7 +302,7 @@ export default function ChatPage() {
                       ))}
                     </div>
                   )}
-                  <div className={`text-xs mt-1 text-right ${
+                  <div className={`text-[10px] mt-1 text-right ${
                     message.sender === 'user'
                       ? 'text-gray-400 dark:text-gray-600'
                       : 'text-gray-500'
@@ -292,9 +323,7 @@ export default function ChatPage() {
                   transition={{ duration: 0.5, delay: 0.3 }}
                   className="mt-4"
                 >
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 text-center">
-                    🤖 AI Assistant workflow in progress...
-                  </div>
+
                   <div className="max-w-full">
                     <AgentPlan 
                       workflowPlan={workflowPlan}
@@ -326,7 +355,7 @@ export default function ChatPage() {
         </div>
 
         {/* Input Area */}
-        <div className="px-4 pb-4">
+        <div className="px-4 pb-20 sm:pb-4">
           <PromptInputBox 
             onSend={handleSendMessage}
             placeholder="Ask me to build a website, analyze data, research a topic, or anything else..."

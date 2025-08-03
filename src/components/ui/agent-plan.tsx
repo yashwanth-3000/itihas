@@ -24,12 +24,20 @@ export default function AgentPlan({ workflowPlan, onTaskStatusChange }: AgentPla
   const [expandedSubtasks, setExpandedSubtasks] = useState<{
     [key: string]: boolean;
   }>({});
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   
   // Add support for reduced motion preference
-  const prefersReducedMotion = 
-    typeof window !== 'undefined' 
-      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches 
-      : false;
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mediaQuery.matches);
+    
+    const handleChange = (e: MediaQueryListEvent) => {
+      setPrefersReducedMotion(e.matches);
+    };
+    
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   // Auto-manage task expansion based on workflow state
   useEffect(() => {
@@ -58,7 +66,7 @@ export default function AgentPlan({ workflowPlan, onTaskStatusChange }: AgentPla
     });
 
     setExpandedTasks(newExpandedTasks);
-  }, [workflowPlan?.tasks?.map(t => `${t.id}-${t.status}-${t.progress}`).join(','), workflowPlan?.status]);
+  }, [workflowPlan?.tasks, workflowPlan?.status]);
 
   if (!workflowPlan) {
     return (
@@ -218,7 +226,7 @@ export default function AgentPlan({ workflowPlan, onTaskStatusChange }: AgentPla
             {/* Workflow Header */}
             <div className="mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-200">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-200">
                   {workflowPlan.title}
                 </h3>
                 <div className="flex items-center gap-2">
@@ -230,7 +238,7 @@ export default function AgentPlan({ workflowPlan, onTaskStatusChange }: AgentPla
                       <Play className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                     </motion.div>
                   )}
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                  <span className={`px-2 py-1 rounded text-[10px] font-medium ${
                     workflowPlan.status === 'completed'
                       ? 'bg-black dark:bg-white text-white dark:text-black'
                       : workflowPlan.status === 'executing'
@@ -241,10 +249,10 @@ export default function AgentPlan({ workflowPlan, onTaskStatusChange }: AgentPla
                   </span>
                 </div>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
                 {workflowPlan.description}
               </p>
-              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-500">
+              <div className="flex items-center justify-between text-[10px] text-gray-500 dark:text-gray-500">
                 <span>Type: {workflowPlan.type}</span>
                 <span>{formatTimeRemaining(workflowPlan.estimatedCompletion)}</span>
               </div>
@@ -326,17 +334,17 @@ export default function AgentPlan({ workflowPlan, onTaskStatusChange }: AgentPla
                               </div>
                             )}
                             {task.progress > 0 && task.status !== 'completed' && (
-                              <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                              <span className="text-[10px] text-gray-500 dark:text-gray-400 font-mono">
                                 {Math.round(task.progress)}%
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                          <p className="text-[10px] text-gray-500 dark:text-gray-500 mt-1">
                             {task.description}
                           </p>
                         </div>
 
-                        <div className="flex flex-shrink-0 items-center space-x-2 text-xs">
+                        <div className="flex flex-shrink-0 items-center space-x-2 text-[10px]">
                           {task.dependencies.length > 0 && (
                             <div className="flex items-center mr-2">
                               <div className="flex flex-wrap gap-1">
@@ -359,7 +367,7 @@ export default function AgentPlan({ workflowPlan, onTaskStatusChange }: AgentPla
                           )}
 
                           <motion.span
-                            className={`rounded px-2 py-1 text-xs font-medium border ${
+                            className={`rounded px-2 py-1 text-[10px] font-medium border ${
                               task.status === "completed"
                                 ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white"
                                 : task.status === "in-progress"
@@ -448,7 +456,7 @@ export default function AgentPlan({ workflowPlan, onTaskStatusChange }: AgentPla
                                     <div className="flex-1">
                                       <div className="flex items-center gap-2">
                                         <span
-                                          className={`cursor-pointer text-sm ${
+                                          className={`cursor-pointer text-xs ${
                                             subtask.status === "completed" 
                                               ? "text-gray-500 dark:text-gray-500 line-through" 
                                               : isSubtaskActive
@@ -480,7 +488,7 @@ export default function AgentPlan({ workflowPlan, onTaskStatusChange }: AgentPla
                                   <AnimatePresence mode="wait">
                                     {isSubtaskExpanded && (
                                       <motion.div 
-                                        className="text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 mt-1 ml-2 border-l border-dashed pl-6 text-xs overflow-hidden"
+                                        className="text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 mt-1 ml-2 border-l border-dashed pl-6 text-[10px] overflow-hidden"
                                         variants={subtaskDetailsVariants}
                                         initial="hidden"
                                         animate="visible"
