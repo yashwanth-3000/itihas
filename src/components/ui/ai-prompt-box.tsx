@@ -3,7 +3,7 @@
 import React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ArrowUp, Paperclip, Square, X, StopCircle, Mic, Globe, BrainCog, FolderCode } from "lucide-react";
+import { ArrowUp, Paperclip, Square, X, StopCircle, Mic, Globe, BrainCog, ScrollText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../lib/utils";
 
@@ -14,7 +14,7 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ className, ...props }, ref) => (
   <textarea
     className={cn(
-      "flex w-full rounded-md border-none bg-transparent px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] resize-none",
+      "flex w-full rounded-md border-none bg-transparent px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] resize-none",
       className
     )}
     ref={ref}
@@ -36,7 +36,7 @@ const TooltipContent = React.forwardRef<
     ref={ref}
     sideOffset={sideOffset}
     className={cn(
-      "z-50 overflow-hidden rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-xs text-gray-900 dark:text-white shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+      "z-50 overflow-hidden rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-xs text-gray-900 dark:text-gray-100 shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
       className
     )}
     {...props}
@@ -416,9 +416,11 @@ interface PromptInputBoxProps {
   className?: string;
   onThinkModeChange?: (isThinkMode: boolean) => void;
   isThinkMode?: boolean;
+  onShowLogsToggle?: () => void;
+  showLogs?: boolean;
 }
 export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxProps>((props, ref) => {
-  const { onSend = () => {}, isLoading = false, placeholder = "Type your message here...", className, onThinkModeChange, isThinkMode = false } = props;
+  const { onSend = () => {}, isLoading = false, placeholder = "Type your message here...", className, onThinkModeChange, isThinkMode = false, onShowLogsToggle, showLogs = false } = props;
   const [input, setInput] = React.useState("");
   const [files, setFiles] = React.useState<File[]>([]);
   const [filePreviews, setFilePreviews] = React.useState<{ [key: string]: string }>({});
@@ -426,7 +428,6 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
   const [isRecording, setIsRecording] = React.useState(false);
   const [showSearch, setShowSearch] = React.useState(false);
   const [showThink, setShowThink] = React.useState(isThinkMode);
-  const [showCanvas, setShowCanvas] = React.useState(false);
   const uploadInputRef = React.useRef<HTMLInputElement>(null);
   const promptBoxRef = React.useRef<HTMLDivElement>(null);
 
@@ -447,8 +448,6 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
       onThinkModeChange?.(newThinkState);
     }
   };
-
-  const handleCanvasToggle = () => setShowCanvas((prev) => !prev);
 
   const isImageFile = (file: File) => file.type.startsWith("image/");
 
@@ -518,7 +517,6 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
       let messagePrefix = "";
       if (showSearch) messagePrefix = "[Search: ";
       else if (showThink) messagePrefix = "[Think: ";
-      else if (showCanvas) messagePrefix = "[Canvas: ";
       const formattedInput = messagePrefix ? `${messagePrefix}${input}]` : input;
       onSend(formattedInput, files);
       setInput("");
@@ -616,8 +614,6 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                 ? "Search the web..."
                 : showThink
                 ? "Think deeply..."
-                : showCanvas
-                ? "Create on canvas..."
                 : placeholder
             }
             className="text-base"
@@ -734,25 +730,25 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
 
               <button
                 type="button"
-                onClick={handleCanvasToggle}
+                onClick={onShowLogsToggle}
                 className={cn(
                   "rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8",
-                  showCanvas
+                  showLogs
                     ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white"
                     : "bg-transparent border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                 )}
               >
                 <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
                   <motion.div
-                    animate={{ rotate: showCanvas ? 360 : 0, scale: showCanvas ? 1.1 : 1 }}
-                    whileHover={{ rotate: showCanvas ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
+                    animate={{ rotate: showLogs ? 360 : 0, scale: showLogs ? 1.1 : 1 }}
+                    whileHover={{ rotate: showLogs ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
                     transition={{ type: "spring", stiffness: 260, damping: 25 }}
                   >
-                    <FolderCode className={cn("w-4 h-4", showCanvas ? "text-white dark:text-black" : "text-inherit")} />
+                    <ScrollText className={cn("w-4 h-4", showLogs ? "text-white dark:text-black" : "text-inherit")} />
                   </motion.div>
                 </div>
                 <AnimatePresence>
-                  {showCanvas && (
+                  {showLogs && (
                     <motion.span
                       initial={{ width: 0, opacity: 0 }}
                       animate={{ width: "auto", opacity: 1 }}
@@ -760,7 +756,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                       transition={{ duration: 0.2 }}
                       className="text-[10px] overflow-hidden whitespace-nowrap text-white dark:text-black flex-shrink-0"
                     >
-                      Canvas
+                      Logs
                     </motion.span>
                   )}
                 </AnimatePresence>

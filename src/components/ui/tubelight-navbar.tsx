@@ -18,9 +18,10 @@ interface NavBarProps {
   className?: string
   isDarkMode?: boolean
   comicTheme?: boolean
+  isMinimized?: boolean
 }
 
-export function NavBar({ items, className, isDarkMode, comicTheme }: NavBarProps) {
+export function NavBar({ items, className, isDarkMode, comicTheme, isMinimized }: NavBarProps) {
   const pathname = usePathname()
   const [isMobile, setIsMobile] = useState(false)
 
@@ -36,7 +37,16 @@ export function NavBar({ items, className, isDarkMode, comicTheme }: NavBarProps
   }, [])
 
   return (
-    <div
+    <motion.div
+      initial={false}
+      animate={{
+        y: isMinimized ? (isMobile ? 100 : -100) : 0,
+        opacity: isMinimized ? 0 : 1
+      }}
+      transition={{
+        duration: 0.3,
+        ease: "easeInOut"
+      }}
       className={cn(
         "fixed bottom-0 sm:top-0 left-1/2 -translate-x-1/2 z-[60] mb-6 sm:pt-4",
         className,
@@ -143,6 +153,6 @@ export function NavBar({ items, className, isDarkMode, comicTheme }: NavBarProps
           )
         })}
       </div>
-    </div>
+    </motion.div>
   )
 } 
