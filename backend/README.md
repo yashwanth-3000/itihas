@@ -35,7 +35,7 @@ backend/
 ├── comic/                  # Comic generation module
 │   ├── agents.py          # CrewAI agents for comic creation
 │   ├── tasks.py           # Task definitions
-│   ├── comic_crew.py      # CrewAI crew configuration
+│   ├── (removed comics module)
 │   ├── main.py            # Main API entry point
 │   ├── start.py           # Application startup
 │   ├── config.py          # Configuration settings

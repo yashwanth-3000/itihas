@@ -32,7 +32,6 @@ export default function ExplorePage() {
     { name: 'Home', url: '/', icon: Home },
     { name: 'Chat', url: '/chat', icon: MessageCircle },
     { name: 'Explore', url: '/explore', icon: Compass },
-    { name: 'Comics', url: '/comics', icon: BookOpen },
     { name: 'About', url: '/sharable-link', icon: User }
   ];
 
