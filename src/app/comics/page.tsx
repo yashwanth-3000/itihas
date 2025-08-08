@@ -5,7 +5,12 @@ import { NavBar } from "../../components/ui/tubelight-navbar";
 import { PromptInputBox } from "../../components/ui/ai-prompt-box";
 import { ComicGenerationProgress } from "../../components/ui/comic-generation-progress";
 import { ComicBookDisplay } from "../../components/ui/comic-book-display";
-import { Home, MessageCircle, User, Compass, BookOpen, CheckCircle, XCircle, Edit3, RefreshCw } from "lucide-react";
+import { Home, MessageCircle, User, Compass, BookOpen, CheckCircle, XCircle, Edit3, RefreshCw, Pencil, Save, X } from "lucide-react";
+import { Bangers, Comic_Neue } from "next/font/google";
+
+// Comic-style fonts must be declared at module scope
+const bangers = Bangers({ subsets: ["latin"], weight: ["400"] });
+const comicNeue = Comic_Neue({ subsets: ["latin"], weight: ["700"] });
 import { useState } from "react";
 
 // Types for comic generation
@@ -31,6 +36,9 @@ interface GenerationProgress {
 }
 
 export default function ComicsPage() {
+  // --- Core, user-configurable settings ---
+  // Number of panels/pages in the comic. Users can change this on the input screen.
+  const [numPages, setNumPages] = useState<number>(8);
   const [isLoading, setIsLoading] = useState(false);
   const [isThinkMode, setIsThinkMode] = useState(false);
   const [currentPhase, setCurrentPhase] = useState<'input' | 'story-generation' | 'story-approval' | 'rewrite-input' | 'image-generation' | 'complete'>('input');
@@ -40,11 +48,17 @@ export default function ComicsPage() {
   const [rewriteInstructions, setRewriteInstructions] = useState('');
   const [generationProgress, setGenerationProgress] = useState<GenerationProgress>({
     currentPanel: 0,
-    totalPanels: 6,
+    totalPanels: numPages,
     isGeneratingStory: false,
     isGeneratingImage: false,
     status: 'Ready to start'
   });
+  // Editing support during story review
+  const [editingPanelId, setEditingPanelId] = useState<number | null>(null);
+  const [draftTitle, setDraftTitle] = useState<string>("");
+  const [draftStory, setDraftStory] = useState<string>("");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
 
   const navItems = [
     { name: 'Home', url: '/', icon: Home },
@@ -69,7 +83,7 @@ export default function ComicsPage() {
     try {
       setGenerationProgress({
         currentPanel: 0,
-        totalPanels: 6,
+        totalPanels: numPages,
         isGeneratingStory: true,
         isGeneratingImage: false,
         status: 'Generating story content...'
@@ -83,7 +97,7 @@ export default function ComicsPage() {
         },
         body: JSON.stringify({
           topic: topic,
-          additional_notes: 'Create a 6-panel educational comic story'
+          additional_notes: `Create a ${numPages}-panel educational comic story`
         }),
       });
 
@@ -103,6 +117,7 @@ export default function ComicsPage() {
       }
     } catch (error) {
       console.error('Error generating story:', error);
+      setErrorMsg('We had trouble generating the story automatically. Showing a sample draft you can review.');
       // Fallback to dummy story for now
       const fallbackPanels = generateFallbackStory(topic);
       setStoryContent({ panels: fallbackPanels, isApproved: false });
@@ -121,10 +136,9 @@ export default function ComicsPage() {
     // Parse the API result and extract story content
     const storyText = apiResult.task_results?.comic_script || apiResult.final_output || '';
     
-    // For now, create 6 panels with the story content
-    // In a real implementation, you'd parse the structured comic script
+    // Create N panels from the story content. In production, parse a structured script.
     const panels: ComicPanel[] = [];
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= numPages; i++) {
       panels.push({
         id: i,
         title: `Page ${i}: ${getDummyChapterTitle(i, topic)}`,
@@ -138,8 +152,8 @@ export default function ComicsPage() {
   const extractPanelStory = (fullStory: string, panelNumber: number, topic: string): string => {
     // Simple extraction logic - in production, you'd have better parsing
     const sentences = fullStory.split('.').filter(s => s.trim().length > 0);
-    const startIndex = Math.floor((sentences.length / 6) * (panelNumber - 1));
-    const endIndex = Math.floor((sentences.length / 6) * panelNumber);
+    const startIndex = Math.floor((sentences.length / numPages) * (panelNumber - 1));
+    const endIndex = Math.floor((sentences.length / numPages) * panelNumber);
     const panelSentences = sentences.slice(startIndex, endIndex);
     
     if (panelSentences.length > 0) {
@@ -151,7 +165,7 @@ export default function ComicsPage() {
 
   const generateFallbackStory = (topic: string): ComicPanel[] => {
     const panels: ComicPanel[] = [];
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= numPages; i++) {
       panels.push({
         id: i,
         title: `Page ${i}: ${getDummyChapterTitle(i, topic)}`,
@@ -196,7 +210,7 @@ export default function ComicsPage() {
     try {
       setGenerationProgress({
         currentPanel: 0,
-        totalPanels: 6,
+        totalPanels: numPages,
         isGeneratingStory: true,
         isGeneratingImage: false,
         status: 'Rewriting story with your feedback...'
@@ -210,7 +224,7 @@ export default function ComicsPage() {
         },
         body: JSON.stringify({
           topic: topic,
-          additional_notes: `Create a 6-panel educational comic story. REWRITE INSTRUCTIONS: ${instructions}`
+          additional_notes: `Create a ${numPages}-panel educational comic story. REWRITE INSTRUCTIONS: ${instructions}`
         }),
       });
 
@@ -291,7 +305,7 @@ export default function ComicsPage() {
     setRewriteInstructions('');
     setGenerationProgress({
       currentPanel: 0,
-      totalPanels: 6,
+      totalPanels: numPages,
       isGeneratingStory: false,
       isGeneratingImage: false,
       status: 'Ready to start'
@@ -319,12 +333,66 @@ export default function ComicsPage() {
           <div className="flex items-center justify-center min-h-screen px-4">
             <div className="w-full max-w-2xl space-y-6">
               <div className="text-center space-y-4">
-                <h1 className="text-4xl md:text-6xl font-bold text-white drop-shadow-2xl">
-                  Create Your Comic
+                <h1
+                  className={`${bangers.className} text-center select-none`}
+                  style={{
+                    fontSize: "clamp(2.75rem, 6vw, 4.5rem)",
+                    color: "#ffe066",
+                    WebkitTextStroke: "3px #000",
+                    letterSpacing: "1px",
+                    lineHeight: 1.05,
+                    textShadow:
+                      "0 6px 0 #000, 0 10px 20px rgba(0,0,0,0.45)",
+                  }}
+                >
+                  CREATE YOUR COMIC
                 </h1>
-                <p className="text-lg md:text-xl text-yellow-200 drop-shadow-lg max-w-lg mx-auto">
-                  Transform any topic into an exciting 6-page comic adventure with AI-generated stories and visuals
-                </p>
+                <div
+                  className="inline-block mx-auto -rotate-1"
+                  style={{
+                    background: "rgba(255,255,255,0.9)",
+                    border: "4px solid #000",
+                    borderRadius: "18px",
+                    padding: "10px 14px",
+                    boxShadow: "0 8px 14px rgba(0,0,0,.25)",
+                    transformOrigin: "center",
+                  }}
+                >
+                  <p
+                    className={`${comicNeue.className} text-center`}
+                    style={{
+                      fontSize: "clamp(1.05rem, 2.2vw, 1.35rem)",
+                      color: "#111",
+                      letterSpacing: ".25px",
+                    }}
+                  >
+                    Transform any topic into an exciting 6-page comic adventure with
+                    AI-generated stories and visuals
+                  </p>
+                </div>
+              </div>
+              {/* Quick settings: page count selector & example chips */}
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex items-center gap-2 bg-white/90 rounded-full border-4 border-black px-3 py-2 shadow-xl">
+                  {[4,6,8,10].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setNumPages(n)}
+                      className={`px-3 py-1 rounded-full font-bold ${n===numPages? 'bg-black text-yellow-300' : 'bg-yellow-200 hover:bg-yellow-300 text-black'}`}
+                      type="button"
+                      aria-label={`Set number of pages to ${n}`}
+                    >
+                      {n} pages
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {['Photosynthesis hero','Space-time detective','Recycling adventure','Ocean ecosystem'].map(s => (
+                    <button key={s} onClick={()=>handleSendMessage(s)} className="text-xs bg-white/90 border-2 border-black rounded-full px-3 py-1 shadow hover:translate-y-[-1px] transition">
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
               <PromptInputBox 
                 onSend={handleSendMessage}
@@ -351,11 +419,20 @@ export default function ComicsPage() {
                 </p>
               </div>
               
-              <div className="bg-white/90 backdrop-blur-md rounded-2xl p-8 shadow-2xl">
-                <div className="flex items-center justify-center space-x-4">
+              <div className="bg-white/95 rounded-2xl p-6 shadow-2xl border-4 border-black">
+                <div className="flex items-center justify-center gap-3 mb-4">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-                  <span className="text-lg font-medium text-gray-800">{generationProgress.status}</span>
+                  <span className="text-lg font-semibold text-gray-900">{generationProgress.status}</span>
                 </div>
+                {/* Skeleton preview for upcoming panels */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {Array.from({length: numPages}).map((_,i)=> (
+                    <div key={i} className="h-24 rounded-xl bg-gradient-to-r from-gray-200 to-gray-300 animate-pulse border-2 border-black/20"></div>
+                  ))}
+                </div>
+                {errorMsg && (
+                  <p className="text-center text-sm text-red-600 mt-4">{errorMsg}</p>
+                )}
               </div>
             </div>
           </div>
@@ -530,7 +607,7 @@ export default function ComicsPage() {
 
         {/* Story Approval Phase */}
         {currentPhase === 'story-approval' && (
-          <div className="min-h-screen px-4 py-8 pt-20 sm:pt-24" style={{ position: 'relative', zIndex: 50 }}>
+          <div className="min-h-screen px-4 py-8 pt-20 sm:pt-24" style={{ position: 'relative', zIndex: 50, pointerEvents: 'auto', isolation: 'isolate' }}>
             <div className="w-full max-w-6xl mx-auto space-y-6">
               <div className="text-center space-y-4">
                 <h1 className="text-3xl md:text-4xl font-bold text-white drop-shadow-2xl">
@@ -542,14 +619,10 @@ export default function ComicsPage() {
               </div>
               
               <div 
-                className="bg-gradient-to-br from-yellow-100 via-orange-50 to-red-100 rounded-3xl p-8 shadow-2xl border-4 border-orange-400" 
-                style={{ 
-                  position: 'relative', 
-                  zIndex: 51,
-                  backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(255, 193, 7, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255, 152, 0, 0.1) 0%, transparent 50%)'
-                }}
+                className="bg-gradient-to-br from-yellow-100 via-orange-50 to-red-100 rounded-3xl p-8 shadow-2xl border-4 border-orange-400 overflow-visible"
+                style={{ position: 'relative', zIndex: 51, pointerEvents: 'auto' }}
               >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12 pb-4">
                   {storyContent.panels.map((panel) => (
                     <div 
                       key={panel.id} 
@@ -572,22 +645,47 @@ export default function ComicsPage() {
                         {panel.id}
                       </div>
                       
-                      <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-                        <BookOpen className="w-6 h-6 mr-3 text-orange-500" />
-                        <span style={{ textShadow: '0 1px 2px rgba(0, 0, 0, 0.1)' }}>
-                          {panel.title}
-                        </span>
-                      </h3>
-                      
-                      <p 
-                        className="text-gray-800 leading-relaxed text-base"
-                        style={{
-                          fontFamily: 'inherit',
-                          lineHeight: '1.6'
-                        }}
-                      >
-                        {panel.story}
-                      </p>
+                      {editingPanelId === panel.id ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Pencil className="w-5 h-5 text-orange-500" />
+                            <input value={draftTitle} onChange={e=>setDraftTitle(e.target.value)} className="w-full border-2 border-orange-300 rounded-lg px-3 py-2 text-gray-800" />
+                          </div>
+                          <textarea value={draftStory} onChange={e=>setDraftStory(e.target.value)} className="w-full h-28 border-2 border-orange-200 rounded-lg px-3 py-2 text-gray-800" />
+                          <div className="flex justify-end gap-2">
+                            <button type="button" onClick={()=>{
+                              // Save changes back into storyContent
+                              setStoryContent(prev=>({
+                                ...prev,
+                                panels: prev.panels.map(p=> p.id===panel.id ? { ...p, title: draftTitle, story: draftStory } : p)
+                              }));
+                              setEditingPanelId(null);
+                            }} className="flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded-lg border-2 border-black">
+                              <Save className="w-4 h-4"/> Save
+                            </button>
+                            <button type="button" onClick={()=>setEditingPanelId(null)} className="flex items-center gap-1 bg-gray-300 text-black px-3 py-1 rounded-lg border-2 border-black">
+                              <X className="w-4 h-4"/> Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center">
+                            <BookOpen className="w-6 h-6 mr-3 text-orange-500" />
+                            <span style={{ textShadow: '0 1px 2px rgba(0, 0, 0, 0.1)' }}>
+                              {panel.title}
+                            </span>
+                          </h3>
+                          <p className="text-gray-800 leading-relaxed text-base" style={{ lineHeight: '1.6' }}>
+                            {panel.story}
+                          </p>
+                          <div className="flex justify-end mt-3">
+                            <button type="button" onClick={()=>{ setEditingPanelId(panel.id); setDraftTitle(panel.title); setDraftStory(panel.story); }} className="flex items-center gap-1 text-sm bg-yellow-300 hover:bg-yellow-400 text-black px-3 py-1 rounded-lg border-2 border-black">
+                              <Pencil className="w-4 h-4"/> Edit
+                            </button>
+                          </div>
+                        </>
+                      )}
                       
                       {/* Comic-style corner decoration */}
                       <div 
@@ -604,11 +702,11 @@ export default function ComicsPage() {
                 <div 
                   style={{ 
                     position: 'relative', 
-                    zIndex: 52,
+                    zIndex: 100,
                     display: 'flex',
                     justifyContent: 'center',
                     gap: '16px',
-                    marginTop: '32px',
+                    marginTop: '40px',
                     pointerEvents: 'auto',
                     flexWrap: 'wrap'
                   }}
@@ -658,9 +756,7 @@ export default function ComicsPage() {
                   </button>
 
                   <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
+                    onClick={() => {
                       console.log('Rewrite button clicked!');
                       handleRewriteStory();
                     }}
@@ -696,6 +792,8 @@ export default function ComicsPage() {
                       e.currentTarget.style.boxShadow = '0 8px 16px -4px rgba(245, 158, 11, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)';
                     }}
                     type="button"
+                    role="button"
+                    aria-label="Rewrite story"
                   >
                     <RefreshCw style={{ width: '20px', height: '20px', marginRight: '8px' }} />
                     Rewrite Story
@@ -823,6 +921,6 @@ function getDummyImagePrompt(panelNumber: number, topic: string): string {
 
 function getDummyImageUrl(panelNumber: number): string {
   // Using placeholder images for now
-  const imageIds = [400, 401, 402, 403, 404, 405, 406, 407, 408, 409];
+  const imageIds = [400, 401, 402, 403, 404, 405, 406, 407];
   return `https://picsum.photos/800/600?random=${imageIds[panelNumber - 1]}`;
 } 

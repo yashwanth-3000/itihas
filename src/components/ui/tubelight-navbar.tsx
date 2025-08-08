@@ -49,11 +49,12 @@ export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme,
         ease: "easeInOut"
       }}
       className={cn(
-        "fixed bottom-0 sm:top-0 left-1/2 -translate-x-1/2 z-[60] mb-6 sm:pt-4",
+        // Place nav near bottom on mobile, near top on desktop. Avoid full-height overlay.
+        "fixed left-1/2 -translate-x-1/2 z-[60] pointer-events-none bottom-6 sm:bottom-auto sm:top-4",
         className,
       )}
     >
-      <div className={`flex items-center gap-3 backdrop-blur-lg py-1 px-1 rounded-full shadow-lg ${
+      <div className={`flex items-center gap-3 backdrop-blur-lg py-1 px-1 rounded-full shadow-lg pointer-events-auto ${
         comicTheme
           ? 'bg-yellow-400/90 border border-orange-400/60'
           : exploreTheme

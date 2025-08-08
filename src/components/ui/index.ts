@@ -6,3 +6,4 @@ export { ComicBookDisplay } from "./comic-book-display";
 export { Button } from "./button";
 export { ModelSelector } from "./model-selector";
 export { MarkdownRenderer } from "./markdown-renderer"; 
+export { default as VaporizeTextCycle, Tag as VaporizeTag } from "./vaporize-text-cycle";
