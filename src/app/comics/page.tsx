@@ -76,7 +76,7 @@ export default function ComicsPage() {
       });
 
       // Call the backend API to generate the comic story
-      const response = await fetch('http://localhost:8001/comic/create-sync', {
+      const response = await fetch('http://localhost:8000/comic/create-sync', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -203,7 +203,7 @@ export default function ComicsPage() {
       });
 
       // Call the backend API to generate the comic story with rewrite instructions
-      const response = await fetch('http://localhost:8001/comic/create-sync', {
+              const response = await fetch('http://localhost:8000/comic/create-sync', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

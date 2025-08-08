@@ -196,6 +196,7 @@ interface ModelSelectorProps {
   onModelChange: (modelId: string) => void;
   className?: string;
   isDarkMode?: boolean;
+  monochrome?: boolean;
 }
 
 const availableModels: ModelOption[] = [

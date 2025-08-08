@@ -107,23 +107,44 @@ def create_response_task(user_message: str, requires_search: bool = False):
         4. Comprehensive but concise
         5. Helpful and actionable when appropriate
         6. Contextually appropriate for the conversation
+        7. **FORMATTED IN PROPER MARKDOWN**
+        
+        MANDATORY FORMATTING REQUIREMENTS:
+        - **Use markdown syntax for all formatting**
+        - Use ## for main headings, ### for subheadings
+        - Use **bold** for emphasis and important points
+        - Use *italics* for subtle emphasis
+        - Use `code blocks` for technical terms or commands
+        - Use bullet points with - for lists
+        - Use numbered lists 1. 2. 3. when order matters
+        - Use > for quotes or important notes
+        - Use [link text](URL) format for any links
+        - Structure content with clear headings and sections
+        - For search results, clearly indicate sources and recent findings
+        - **NEVER use emojis in your response**
+        - Keep responses professional and text-only
         
         Guidelines:
         - Keep the tone friendly and professional
-        - Structure information clearly with paragraphs or bullet points when helpful
+        - Structure information clearly with markdown headings and lists
         - Include specific details when they add value
         - Acknowledge any limitations in your knowledge
         - Encourage follow-up questions if appropriate
         - Maintain conversation flow naturally
+        - **ALWAYS format the entire response in markdown**
+        
+        IMPORTANT: Your response should be professional text only. Do not include any emojis, emoticons, or special characters like 😊, 🌟, etc. Use plain text with markdown formatting only.
         """,
         agent=chat_assistant,
         expected_output="""
         A conversational response that:
         - Directly addresses the user's query
-        - Is well-structured and easy to read
-        - Includes relevant information and details
+        - Is well-structured and easy to read in **markdown format**
+        - Includes relevant information and details with proper markdown formatting
         - Maintains an engaging, helpful tone
+        - Uses markdown headings, lists, and emphasis appropriately
         - Encourages continued conversation when appropriate
+        - **ENTIRE RESPONSE MUST BE IN MARKDOWN FORMAT**
         """
     )
 
@@ -140,16 +161,35 @@ def create_simple_chat_task(user_message: str):
         3. Providing clear and relevant information
         4. Encouraging continued dialogue
         5. Being concise but comprehensive
+        6. **FORMATTING EVERYTHING IN PROPER MARKDOWN**
         
-        Use your training knowledge to provide the best possible response.
+        MARKDOWN FORMATTING REQUIREMENTS:
+        - Use ## for main headings, ### for subheadings
+        - Use **bold** for emphasis and important points
+        - Use *italics* for subtle emphasis
+        - Use `code blocks` for technical terms
+        - Use bullet points with - for lists
+        - Use numbered lists when order matters
+        - Use > for quotes or important notes
+        - Structure content with clear markdown formatting
+        - **ABSOLUTELY NO EMOJIS OR EMOTICONS ALLOWED**
+        - Keep responses professional and text-only
+        - Do not use any symbols like 😊, 🌟, 👍, ✨, 🚀, etc.
+        - Professional business communication style only
+        
+        Use your training knowledge to provide the best possible response in markdown format.
+        
+        CRITICAL: This is a professional system. NEVER include emojis, emoticons, or decorative symbols. Your response must be plain text with markdown formatting only. Any emoji will cause system errors.
         """,
         agent=chat_assistant,
         expected_output="""
         A friendly, informative response that:
         - Directly addresses the user's message
-        - Provides helpful information
-        - Maintains conversational flow
-        - Is appropriately detailed
+        - Provides helpful information in **markdown format**
+        - Maintains conversational flow with proper markdown structure
+        - Is appropriately detailed with markdown formatting
+        - Uses headings, lists, and emphasis correctly
         - Encourages further interaction
+        - **ENTIRE RESPONSE MUST BE IN MARKDOWN FORMAT**
         """
     ) 

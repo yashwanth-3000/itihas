@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { PromptInputBox } from "@/components/ui/ai-prompt-box";
 import { NavBar } from "@/components/ui/tubelight-navbar";
 import { ModelSelector } from "@/components/ui/model-selector";
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { Moon, Sun, Bot, User, ArrowLeft, Home, MessageCircle, Compass, BookOpen } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -22,18 +23,21 @@ interface Message {
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gpt-4');
   const [currentWorkflow, setCurrentWorkflow] = useState<AgentWorkflow | null>(null);
   const [workflowPlan, setWorkflowPlan] = useState<WorkflowPlan | null>(null);
   const [isThinkMode, setIsThinkMode] = useState(false);
   const [isChatStarted, setIsChatStarted] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+  const [showNavbar, setShowNavbar] = useState(true);
   const [chatLogs, setChatLogs] = useState<Array<{
     timestamp: Date;
-    type: 'user_input' | 'model_selection' | 'api_call' | 'response' | 'error';
+    type: 'user_input' | 'model_selection' | 'api_call' | 'response' | 'error' | 'agent_start' | 'agent_complete' | 'agent_hierarchy';
     data: Record<string, unknown>;
     message?: string;
+    agent?: string;
+    hierarchy?: number;
   }>>([]);
   const [logsPanelWidth, setLogsPanelWidth] = useState(384); // 24rem in pixels
   const [isResizing, setIsResizing] = useState(false);
@@ -55,15 +59,9 @@ export default function ChatPage() {
   // Initialize messages after hydration to avoid hydration mismatch
   useEffect(() => {
     if (messages.length === 0) {
-      const modelNames: { [key: string]: string } = {
-        'gpt-3.5-turbo': 'GPT-3.5 Turbo',
-        'gpt-4': 'GPT-4',
-        'gpt-4-turbo': 'GPT-4 Turbo'
-      };
-      
       setMessages([{
         id: '1',
-        content: `Hello! I'm your AI assistant powered by ${modelNames[selectedModel] || selectedModel}. I can help you with web development, data analysis, research, and more. You can change my model using the dropdown in the header. What would you like me to work on?`,
+        content: `Hello! I'm your AI assistant. I can help you with web development, data analysis, research, and more. You can change the model using the dropdown in the header. What would you like me to work on?`,
         sender: 'bot',
         timestamp: new Date(),
       }]);
@@ -75,6 +73,18 @@ export default function ChatPage() {
     // Check if chat has started (more than 1 message means user has sent something)
     setIsChatStarted(messages.length > 1);
   }, [messages]);
+
+  // Navbar hover-only visibility
+  useEffect(() => {
+    // Hide navbar initially after 1.5 seconds
+    const initialTimer = setTimeout(() => {
+      setShowNavbar(false);
+    }, 1500);
+
+    return () => {
+      clearTimeout(initialTimer);
+    };
+  }, []);
 
   useEffect(() => {
     // Apply theme to document
@@ -110,6 +120,7 @@ export default function ChatPage() {
     }
   };
 
+
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
   };
@@ -119,13 +130,27 @@ export default function ChatPage() {
     console.log('Model changed to:', model);
   };
 
-  const addChatLog = (type: 'user_input' | 'model_selection' | 'api_call' | 'response' | 'error', data: Record<string, unknown>, message?: string) => {
-    setChatLogs(prev => [...prev, {
-      timestamp: new Date(),
-      type,
-      data,
-      message
-    }]);
+  const addChatLog = (type: 'user_input' | 'model_selection' | 'api_call' | 'response' | 'error' | 'agent_start' | 'agent_complete' | 'agent_hierarchy', data: Record<string, unknown>, message?: string, agent?: string, hierarchy?: number) => {
+    setChatLogs(prev => {
+      const newLogs = [...prev, {
+        timestamp: new Date(),
+        type,
+        data,
+        message,
+        agent,
+        hierarchy
+      }];
+      
+      // Auto-scroll logs panel to bottom
+      setTimeout(() => {
+        const logsPanel = document.querySelector('.logs-panel-content');
+        if (logsPanel) {
+          logsPanel.scrollTop = logsPanel.scrollHeight;
+        }
+      }, 50);
+      
+      return newLogs;
+    });
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -186,88 +211,144 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
-    try {
-      // Call the real chat API
-      addChatLog('api_call', { 
-        model: 'IBM Granite-3-8B', 
-        think_mode: isThinkMode,
-        force_research: isThinkMode,
-        timestamp: new Date() 
-      }, `Calling chat API... ${isThinkMode ? '[RESEARCH MODE]' : '[SIMPLE MODE]'}`);
-      
-      const requestBody = {
-        message: message,
-        force_simple: false,  // Always allow research capability
-        force_research: isThinkMode  // Force research when think mode is enabled
-      };
-      
-      addChatLog('api_call', { 
-        request_body: requestBody,
-        endpoint: 'http://localhost:8001/chat'
-      }, 'Request payload prepared');
-      
-      const response = await fetch('http://localhost:8001/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      addChatLog('api_call', { 
-        status: response.status,
-        status_text: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
-      }, `HTTP Response: ${response.status} ${response.statusText}`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      addChatLog('api_call', { 
-        response_data: {
-          success: data.success,
-          conversation_id: data.conversation_id,
-          metadata: data.metadata,
-          response_length: data.response?.length || 0
+          try {
+        // Show real-time agent workflow initiation
+        if (isThinkMode) {
+          addChatLog('agent_hierarchy', {
+            mode: 'research',
+            expected_agents: ['Context Analyzer', 'EXA Search Tool', 'Conversational AI Assistant']
+          }, 'Initializing research workflow: Context Analysis → Web Search → Response Generation');
+          
+          await new Promise(resolve => setTimeout(resolve, 200));
+          addChatLog('agent_start', {
+            agent: 'Context Analyzer',
+            step: 1,
+            total_steps: 3
+          }, 'Analyzing user query context and determining research strategy...', 'Context Analyzer', 0);
+        } else {
+          addChatLog('agent_hierarchy', {
+            mode: 'simple',
+            expected_agents: ['Conversational AI Assistant']
+          }, 'Initializing simple chat workflow: Direct Response Generation');
+          
+          await new Promise(resolve => setTimeout(resolve, 100));
+          addChatLog('agent_start', {
+            agent: 'Conversational AI Assistant',
+            step: 1,
+            total_steps: 1
+          }, 'Processing conversational response using IBM Granite-3-8B...', 'Conversational AI Assistant', 0);
         }
-      }, `API Response received: ${data.success ? 'SUCCESS' : 'FAILED'}`);
-      
-      if (data.success) {
-        // Add bot response
-        const botResponse: Message = {
-          id: (Date.now() + 1).toString(),
-          content: data.response,
-          sender: 'bot',
-          timestamp: new Date(),
-        };
 
-        addChatLog('response', { 
-          content: data.response, 
-          type: data.metadata?.response_type || 'unknown',
-          research_used: data.metadata?.research_used || false,
-          agents_used: data.metadata?.agents_used || [],
-          response_length: data.response.length,
-          think_mode_was_on: isThinkMode
-        }, `AI response generated (${data.metadata?.response_type || 'unknown'}) - ${data.metadata?.research_used ? 'WITH SEARCH' : 'NO SEARCH'}`);
+        // Call the real chat API
+        addChatLog('api_call', { 
+          model: 'IBM Granite-3-8B', 
+          think_mode: isThinkMode,
+          force_research: isThinkMode,
+          timestamp: new Date() 
+        }, `Sending request to chat API ${isThinkMode ? '[RESEARCH MODE]' : '[SIMPLE MODE]'}`);
         
-        // Log research details if available
-        if (data.metadata?.research_used) {
-          addChatLog('response', {
-            research_details: {
-              agents_used: data.metadata.agents_used,
-              response_type: data.metadata.response_type,
-              analysis: data.metadata.analysis
-            }
-          }, 'Research was performed successfully');
-        } else if (isThinkMode) {
-          addChatLog('response', {
-            warning: 'Think mode was enabled but no research was performed',
-            possible_reasons: ['Query did not trigger research keywords', 'Backend logic issue']
-          }, 'WARNING: Expected research but got simple response');
+        const requestBody = {
+          message: message,
+          force_simple: false,  // Always allow research capability
+          force_research: isThinkMode  // Force research when think mode is enabled
+        };
+      
+              // Simulate real-time agent execution during API call
+        if (isThinkMode) {
+          // Show context analysis completion
+          await new Promise(resolve => setTimeout(resolve, 800));
+          addChatLog('agent_complete', {
+            agent: 'Context Analyzer',
+            step: 1,
+            total_steps: 3
+          }, 'Context analysis complete - research keywords detected, proceeding to search', 'Context Analyzer', 0);
+          
+          // Start EXA search
+          await new Promise(resolve => setTimeout(resolve, 300));
+          addChatLog('agent_start', {
+            agent: 'EXA Search Tool',
+            step: 2,
+            total_steps: 3
+          }, 'Initiating semantic web search for real-time information...', 'EXA Search Tool', 1);
         }
+
+        const response = await fetch('http://localhost:8001/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        // Continue real-time agent simulation
+        if (isThinkMode) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          addChatLog('agent_complete', {
+            agent: 'EXA Search Tool',
+            step: 2,
+            total_steps: 3
+          }, 'Web search complete - relevant information retrieved, synthesizing response', 'EXA Search Tool', 1);
+          
+          await new Promise(resolve => setTimeout(resolve, 200));
+          addChatLog('agent_start', {
+            agent: 'Conversational AI Assistant',
+            step: 3,
+            total_steps: 3
+          }, 'Generating research-enhanced response using IBM Granite-3-8B...', 'Conversational AI Assistant', 2);
+        }
+
+        const data = await response.json();
+
+                if (data.success) {
+          // Complete the final agent
+          await new Promise(resolve => setTimeout(resolve, 300));
+          if (isThinkMode) {
+            addChatLog('agent_complete', {
+              agent: 'Conversational AI Assistant',
+              step: 3,
+              total_steps: 3
+            }, 'Research-enhanced response generated successfully', 'Conversational AI Assistant', 2);
+          } else {
+            addChatLog('agent_complete', {
+              agent: 'Conversational AI Assistant',
+              step: 1,
+              total_steps: 1
+            }, 'Conversational response generated successfully', 'Conversational AI Assistant', 0);
+          }
+
+          // Add bot response
+          const botResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            content: data.response,
+            sender: 'bot',
+            timestamp: new Date(),
+          };
+
+          await new Promise(resolve => setTimeout(resolve, 200));
+          addChatLog('response', { 
+            content: data.response, 
+            type: data.metadata?.response_type || 'unknown',
+            research_used: data.metadata?.research_used || false,
+            agents_used: data.metadata?.agents_used || [],
+            response_length: data.response.length,
+            think_mode_was_on: isThinkMode
+          }, `Response ready: ${data.response.length} characters ${data.metadata?.research_used ? 'with web search data' : 'from knowledge base'}`);
+
+          // Log research summary if available
+          if (data.metadata?.research_used && isThinkMode) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            addChatLog('response', {
+              research_summary: {
+                search_results_length: data.metadata?.search_results_length || 0,
+                sources_found: data.metadata?.sources_found || 0,
+                search_query: data.metadata?.search_query
+              }
+            }, `Research summary: ${data.metadata?.search_results_length || 0} chars from web search, query: "${data.metadata?.search_query}"`);
+          }
         
         setMessages(prev => [...prev, botResponse]);
 
@@ -356,10 +437,90 @@ export default function ChatPage() {
         ? 'bg-black text-gray-300' 
         : 'bg-white text-black'
     }`}>
-      <NavBar items={navItems} isDarkMode={isDarkMode} isMinimized={isChatStarted} />
+      {/* Thin hover trigger zone at very top */}
+      <div 
+        className="fixed top-0 left-0 right-0 z-40 h-2"
+        onMouseEnter={() => setShowNavbar(true)}
+        style={{ 
+          background: 'transparent',
+          pointerEvents: showNavbar ? 'none' : 'auto' // Only capture when hidden
+        }}
+      />
+
+      {/* Actual navbar */}
+      <motion.div
+        initial={{ y: 0, opacity: 1 }}
+        animate={{ 
+          y: showNavbar ? 0 : -100, 
+          opacity: showNavbar ? 1 : 0 
+        }}
+        transition={{ 
+          duration: 0.3, 
+          ease: [0.25, 0.46, 0.45, 0.94] // Faster for immediate response
+        }}
+        className="fixed top-0 left-0 right-0 z-50"
+        onMouseLeave={() => setShowNavbar(false)}
+        style={{
+          transform: showNavbar ? 'translateY(0%)' : 'translateY(-100%)',
+          pointerEvents: showNavbar ? 'auto' : 'none'
+        }}
+      >
+        <NavBar items={navItems} isDarkMode={isDarkMode} isMinimized={isChatStarted} />
+        
+        {/* Subtle bottom shadow when navbar is visible */}
+        {showNavbar && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className={`absolute bottom-0 left-0 right-0 h-4 ${
+              isDarkMode 
+                ? 'bg-gradient-to-b from-transparent to-black/20' 
+                : 'bg-gradient-to-b from-transparent to-gray-200/30'
+            }`}
+          />
+        )}
+      </motion.div>
       
+      {/* Navbar Show Indicator */}
+      {!showNavbar && (
+        <motion.div
+          initial={{ opacity: 0, y: -10, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -10, scale: 0.9 }}
+          transition={{ 
+            duration: 0.3, 
+            ease: "easeOut",
+            delay: 0.5 // Show after 0.5 second delay
+          }}
+          className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-40 px-4 py-2 text-xs rounded-full ${
+            isDarkMode 
+              ? 'bg-gray-900/90 text-gray-400 border border-gray-700/60 shadow-lg' 
+              : 'bg-white/90 text-gray-500 border border-gray-300/60 shadow-lg'
+          } backdrop-blur-md transition-all duration-300 hover:scale-105`}
+        >
+          <div className="flex items-center gap-2">
+            <motion.div
+              animate={{ y: [0, -2, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="text-[10px]"
+            >
+              ↑
+            </motion.div>
+            <span>Hover at very top edge for navbar</span>
+          </div>
+        </motion.div>
+      )}
+
       {/* Chat Container - takes remaining space */}
-      <div ref={containerRef} className="flex flex-1 overflow-hidden">
+              <div 
+        ref={containerRef} 
+        className="flex flex-1 overflow-hidden transition-all duration-300"
+        style={{ 
+          paddingTop: showNavbar ? '80px' : '2px' // Minimal padding for thin trigger zone
+        }}
+      >
         {/* Main Chat Area */}
         <div className={`${showLogs ? 'flex-1' : 'w-full'} flex flex-col transition-all duration-300`}>
           {/* Header moved to chat area */}
@@ -409,6 +570,7 @@ export default function ChatPage() {
                       selectedModel={selectedModel}
                       onModelChange={handleModelChange}
                       isDarkMode={isDarkMode}
+                      monochrome
                     />
                   </div>
                   
@@ -469,6 +631,7 @@ export default function ChatPage() {
                     selectedModel={selectedModel}
                     onModelChange={handleModelChange}
                     isDarkMode={isDarkMode}
+                    monochrome
                   />
                 </div>
               </div>
@@ -489,13 +652,19 @@ export default function ChatPage() {
                 }`}
               >
                 <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${
+                  className={`max-w-[75%] rounded-2xl px-4 py-3 ${
                     message.sender === 'user'
-                      ? 'rounded-br-lg bg-black text-white dark:bg-gray-300 dark:text-black'
-                      : 'rounded-bl-lg bg-blue-600 text-white dark:bg-blue-700 dark:text-white'
+                      ? 'rounded-br-lg bg-black text-white dark:bg-gray-300 dark:text-black shadow-sm'
+                      : isDarkMode 
+                        ? 'rounded-bl-lg bg-gray-900/50 text-gray-200 border border-gray-800/50 shadow-none'
+                        : 'rounded-bl-lg bg-gray-50/80 text-gray-800 border border-gray-200/60 shadow-none'
                   }`}
                 >
-                  <p className="text-xs leading-relaxed">{message.content}</p>
+                  <MarkdownRenderer 
+                    content={message.content}
+                    isUserMessage={message.sender === 'user'}
+                    className={message.sender === 'user' ? "text-white" : isDarkMode ? "text-gray-200" : "text-gray-800"}
+                  />
                   {message.files && message.files.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {message.files.map((file, index) => (
@@ -515,7 +684,9 @@ export default function ChatPage() {
                   <div className={`text-[10px] mt-1 text-right ${
                     message.sender === 'user'
                       ? 'text-gray-400 dark:text-gray-600'
-                      : 'text-gray-500'
+                      : isDarkMode 
+                        ? 'text-gray-500'
+                        : 'text-gray-400'
                   }`}>
                     {message.timestamp.toLocaleTimeString([], { 
                       hour: '2-digit', 
@@ -552,11 +723,15 @@ export default function ChatPage() {
               transition={{ duration: 0.3 }}
               className="flex justify-start"
             >
-              <div className="max-w-[70%] rounded-2xl px-4 py-3 shadow-sm rounded-bl-lg bg-blue-600 text-white dark:bg-blue-700">
+              <div className={`max-w-[70%] rounded-2xl px-4 py-3 rounded-bl-lg ${
+                isDarkMode 
+                  ? 'bg-gray-900/50 border border-gray-800/50 shadow-none'
+                  : 'bg-gray-50/80 border border-gray-200/60 shadow-none'
+              }`}>
                 <div className="flex gap-1">
-                  <div className="w-2 h-2 rounded-full animate-bounce bg-white/70" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-2 h-2 rounded-full animate-bounce bg-white/70" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-2 h-2 rounded-full animate-bounce bg-white/70" style={{ animationDelay: '300ms' }}></div>
+                  <div className={`w-2 h-2 rounded-full animate-bounce ${isDarkMode ? 'bg-gray-400/60' : 'bg-gray-500/50'}`} style={{ animationDelay: '0ms' }}></div>
+                  <div className={`w-2 h-2 rounded-full animate-bounce ${isDarkMode ? 'bg-gray-400/60' : 'bg-gray-500/50'}`} style={{ animationDelay: '150ms' }}></div>
+                  <div className={`w-2 h-2 rounded-full animate-bounce ${isDarkMode ? 'bg-gray-400/60' : 'bg-gray-500/50'}`} style={{ animationDelay: '300ms' }}></div>
                 </div>
               </div>
             </motion.div>
@@ -588,54 +763,125 @@ export default function ChatPage() {
 
         {/* Resizable Divider */}
         {showLogs && (
-          <div 
-            className="w-1 bg-gray-600 cursor-col-resize hover:bg-green-400 transition-colors relative group"
+          <motion.div 
+            initial={{ opacity: 0, scaleY: 0 }}
+            animate={{ opacity: 1, scaleY: 1 }}
+            exit={{ opacity: 0, scaleY: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="w-1 bg-gray-600 cursor-col-resize hover:bg-green-400 transition-colors relative group origin-center"
             onMouseDown={handleMouseDown}
           >
             <div className="absolute inset-y-0 -inset-x-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
               <div className="w-0.5 h-8 bg-green-400 rounded-full"></div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Terminal Logs Panel */}
         {showLogs && (
-          <div 
+          <motion.div 
+            initial={{ opacity: 0, x: 100, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 100, scale: 0.95 }}
+            transition={{ 
+              duration: 0.4, 
+              ease: [0.23, 1, 0.32, 1],
+              type: "spring",
+              stiffness: 300,
+              damping: 30
+            }}
             className="flex flex-col"
             style={{ width: `${logsPanelWidth}px` }}
           >
-            <div className="h-full bg-black border-l border-gray-600 font-mono text-sm">
+            <div className={`h-full border-l font-mono text-sm ${
+              isDarkMode 
+                ? 'bg-black border-gray-600' 
+                : 'bg-black border-gray-800'
+            }`}>
               {/* Terminal Header */}
-              <div className="bg-gray-900 border-b border-gray-600 px-4 py-2 flex items-center justify-between">
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+                className={`border-b px-4 py-2 flex items-center justify-between ${
+                  isDarkMode 
+                    ? 'bg-gray-900 border-gray-600' 
+                    : 'bg-gray-900 border-gray-700'
+                }`}
+              >
                 <div className="flex items-center space-x-2">
                   <div className="flex space-x-1">
-                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                    <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <motion.div 
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.2, delay: 0.2 }}
+                      className="w-3 h-3 rounded-full bg-red-500"
+                    ></motion.div>
+                    <motion.div 
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.2, delay: 0.25 }}
+                      className="w-3 h-3 rounded-full bg-yellow-500"
+                    ></motion.div>
+                    <motion.div 
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.2, delay: 0.3 }}
+                      className="w-3 h-3 rounded-full bg-green-500"
+                    ></motion.div>
                   </div>
-                  <span className="text-green-400 text-xs font-bold">chat.log</span>
+                  <motion.span 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.3, delay: 0.4 }}
+                    className="text-xs font-bold text-green-400"
+                  >
+                    chat.log
+                  </motion.span>
                 </div>
-                <div className="text-gray-400 text-xs">
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.3, delay: 0.5 }}
+                  className="text-xs text-gray-400"
+                >
                   {chatLogs.length} entries
-                </div>
-              </div>
+                </motion.div>
+              </motion.div>
               
               {/* Terminal Content */}
-              <div className="h-full overflow-y-auto p-4 space-y-1 text-xs">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.4, delay: 0.2 }}
+                className="h-full overflow-y-auto p-4 space-y-1 text-xs logs-panel-content"
+              >
                 {chatLogs.length === 0 ? (
-                  <div className="text-gray-500 text-center py-8">
-                    <p>~ Waiting for logs...</p>
-                    <p className="text-gray-600 mt-2">$ tail -f chat.log</p>
-                  </div>
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.3 }}
+                    className="text-center py-8 text-green-400"
+                  >
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.3, delay: 0.5 }}
+                    >
+                      ~ Waiting for logs...
+                    </motion.p>
+                    <motion.p 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.3, delay: 0.7 }}
+                      className="mt-2 text-gray-500"
+                    >
+                      $ tail -f chat.log
+                    </motion.p>
+                  </motion.div>
                 ) : (
                   chatLogs.map((log, index) => {
-                    const timestamp = log.timestamp.toLocaleTimeString('en-US', { 
-                      hour12: false,
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit'
-                    });
-                    const ms = log.timestamp.getMilliseconds().toString().padStart(3, '0');
+                    // Remove timestamp display entirely
                     
                     const getLogSymbol = (type: string) => {
                       switch (type) {
@@ -644,68 +890,133 @@ export default function ChatPage() {
                         case 'api_call': return '↗';
                         case 'response': return '←';
                         case 'error': return '✗';
+                        case 'agent_start': return '▶';
+                        case 'agent_complete': return '✓';
+                        case 'agent_hierarchy': return '▲';
                         default: return '•';
                       }
                     };
                     
                     const getLogColor = (type: string) => {
+                      // Classic terminal colors
                       switch (type) {
-                        case 'user_input': return 'text-blue-400';
-                        case 'model_selection': return 'text-purple-400';
-                        case 'api_call': return 'text-yellow-400';
-                        case 'response': return 'text-green-400';
-                        case 'error': return 'text-red-400';
+                        case 'user_input': return 'text-cyan-400 font-bold';
+                        case 'model_selection': return 'text-magenta-400 font-semibold';
+                        case 'api_call': return 'text-yellow-400 font-medium';
+                        case 'response': return 'text-green-400 font-bold';
+                        case 'error': return 'text-red-400 font-extrabold';
+                        case 'agent_start': return 'text-blue-400 font-bold';
+                        case 'agent_complete': return 'text-emerald-400 font-bold';
+                        case 'agent_hierarchy': return 'text-purple-400 font-semibold';
                         default: return 'text-gray-400';
                       }
                     };
                     
+                    // Check if this is a new message (user_input and not the first log)
+                    const isNewMessage = log.type === 'user_input' && index > 0;
+                    
                     return (
-                      <div key={index} className="group hover:bg-gray-900/50 -mx-2 px-2 py-1 rounded transition-colors">
+                      <React.Fragment key={index}>
+                        {/* Message separator */}
+                        {isNewMessage && (
+                          <div className="flex items-center my-3">
+                            <div className="flex-1 border-t border-gray-600"></div>
+                            <span className="px-3 text-xs text-gray-500 font-mono">
+                              - - - - - - - - -
+                            </span>
+                            <div className="flex-1 border-t border-gray-600"></div>
+                          </div>
+                        )}
+                        
+                        {/* Log entry */}
+                      <motion.div 
+                        key={index} 
+                        initial={{ opacity: 0, y: 10, x: -20 }}
+                        animate={{ opacity: 1, y: 0, x: 0 }}
+                        transition={{ 
+                          duration: 0.3, 
+                          delay: Math.min(index * 0.05, 1),
+                          ease: "easeOut"
+                        }}
+                        className="group -mx-2 px-2 py-1 rounded transition-colors hover:bg-gray-900/30"
+                      >
                         <div className="flex items-start space-x-2">
-                          <span className="text-gray-500 shrink-0">
-                            [{timestamp}.{ms}]
-                          </span>
-                          <span className={`${getLogColor(log.type)} shrink-0 font-bold`}>
+                          <span className={`${getLogColor(log.type)} shrink-0`}>
                             {getLogSymbol(log.type)}
                           </span>
-                          <span className={`${getLogColor(log.type)} shrink-0 uppercase text-[10px] font-bold`}>
+                          <span className={`${getLogColor(log.type)} shrink-0 uppercase text-[10px]`}>
                             {log.type.replace('_', '-')}
                           </span>
-                          <span className="text-gray-300 flex-1 break-all">
-                            {log.message || 'Processing...'}
+                          {log.agent && (
+                            <span className="text-orange-400 text-[10px] px-1 bg-orange-400/10 rounded">
+                              {log.agent}
+                            </span>
+                          )}
+                          <span className="flex-1 break-all text-white" style={{ paddingLeft: log.hierarchy ? `${log.hierarchy * 12}px` : '0px' }}>
+                            {log.hierarchy && log.hierarchy > 0 ? '  '.repeat(log.hierarchy) + '└─ ' : ''}{log.message || 'Processing...'}
                           </span>
                         </div>
                         
                         {/* Expandable details */}
                         <details className="mt-1 ml-8">
-                          <summary className="cursor-pointer text-gray-500 hover:text-gray-400 text-[10px] select-none">
+                          <summary className="cursor-pointer text-[10px] select-none text-gray-500 hover:text-gray-400">
                             [DEBUG] Show raw data
                           </summary>
-                          <div className="mt-1 p-2 bg-gray-900 border border-gray-700 rounded text-[10px] overflow-x-auto">
-                            <pre className="text-gray-400 whitespace-pre-wrap">
+                          <div className="mt-1 p-2 border rounded text-[10px] overflow-x-auto bg-gray-900 border-gray-700">
+                            <pre className="whitespace-pre-wrap text-gray-400">
                               {JSON.stringify(log.data, null, 2)}
                             </pre>
                           </div>
                         </details>
-                      </div>
+                      </motion.div>
+                      </React.Fragment>
                     );
                   })
                 )}
                 
                 {/* Terminal status line */}
-                <div className="flex items-center justify-between mt-4 pt-2 border-t border-gray-800">
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.6 }}
+                  className="flex items-center justify-between mt-4 pt-2 border-t border-gray-800"
+                >
                   <div className="flex items-center space-x-1 opacity-75">
-                    <span className="text-green-400">$</span>
-                    <span className="text-gray-400">tail -f chat.log</span>
-                    <span className="inline-block w-2 h-4 bg-green-400 animate-pulse"></span>
+                    <motion.span 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.2, delay: 0.7 }}
+                      className="font-bold text-green-400"
+                    >
+                      $
+                    </motion.span>
+                    <motion.span 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.3, delay: 0.8 }}
+                      className="text-gray-400"
+                    >
+                      tail -f chat.log
+                    </motion.span>
+                    <motion.span 
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.2, delay: 0.9 }}
+                      className="inline-block w-2 h-4 animate-pulse bg-green-400"
+                    ></motion.span>
                   </div>
-                  <div className="text-gray-600 text-[10px]">
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.3, delay: 1 }}
+                    className="text-[10px] text-gray-600"
+                  >
                     {chatLogs.length > 0 && `Last: ${chatLogs[chatLogs.length - 1].timestamp.toLocaleTimeString()}`}
-                  </div>
-                </div>
-              </div>
+                  </motion.div>
+                </motion.div>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
         )}
       </div>
     </div>

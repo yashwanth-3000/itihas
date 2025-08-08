@@ -1,12 +1,16 @@
 "use client";
 
 import { NavBar } from "@/components/ui/tubelight-navbar";
+import { PromptInputBox } from "@/components/ui/ai-prompt-box";
 import { Home, MessageCircle, User, Compass, BookOpen, ArrowLeft, Sparkles, Telescope, Map, Lightbulb } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
 export default function ExplorePage() {
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [currentPhase, setCurrentPhase] = useState<'input' | 'exploring'>('input');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isThinkMode, setIsThinkMode] = useState(false);
+  const [exploreTopic, setExploreTopic] = useState('');
 
   const navItems = [
     { name: 'Home', url: '/', icon: Home },
@@ -16,151 +20,73 @@ export default function ExplorePage() {
     { name: 'About', url: '/sharable-link', icon: User }
   ];
 
-  const exploreCategories = [
-    {
-      title: "AI Discovery",
-      description: "Explore the latest AI capabilities and experiments",
-      icon: Sparkles,
-      color: "from-purple-500 to-pink-500",
-      items: ["GPT Models", "Image Generation", "Voice Synthesis", "Code Assistant"]
-    },
-    {
-      title: "Knowledge Base",
-      description: "Deep dive into various topics and subjects",
-      icon: Telescope,
-      color: "from-blue-500 to-cyan-500",
-      items: ["Science & Tech", "History", "Philosophy", "Literature"]
-    },
-    {
-      title: "Creative Tools",
-      description: "Unleash your creativity with AI-powered tools",
-      icon: Lightbulb,
-      color: "from-orange-500 to-red-500",
-      items: ["Story Generator", "Art Creation", "Music Composer", "Poetry Writer"]
-    },
-    {
-      title: "Interactive Maps",
-      description: "Navigate through different AI capabilities",
-      icon: Map,
-      color: "from-green-500 to-emerald-500",
-      items: ["Skill Tree", "Learning Paths", "Feature Map", "Progress Tracker"]
-    }
-  ];
+
+
+  const handleSendMessage = async (message: string, files?: File[]) => {
+    if (!message.trim() && !files?.length) return;
+    
+    setExploreTopic(message);
+    setCurrentPhase('exploring');
+    setIsLoading(true);
+    
+    // Simulate exploration process
+    setTimeout(() => {
+      setIsLoading(false);
+      setCurrentPhase('input');
+    }, 3000);
+  };
+
+  const handleThinkModeChange = (newThinkMode: boolean) => {
+    setIsThinkMode(newThinkMode);
+  };
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      isDarkMode 
-        ? 'bg-black text-gray-300' 
-        : 'bg-white text-black'
-    }`}>
-      <NavBar items={navItems} isDarkMode={isDarkMode} />
+    <div 
+      className="min-h-screen relative"
+      style={{
+        backgroundImage: 'url(/explore.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      {/* Overlay for better text readability */}
+      <div className="absolute inset-0 bg-black/20 pointer-events-none"></div>
       
-      {/* Spacer for navbar on desktop */}
-      <div className="hidden sm:block h-16"></div>
-      
-      {/* Header */}
-      <div className={`sticky top-0 sm:top-16 z-40 border-b transition-colors ${
-        isDarkMode 
-          ? 'bg-black/95 border-gray-800 backdrop-blur-sm' 
-          : 'bg-white/95 border-gray-200 backdrop-blur-sm'
-      }`}>
-        <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link 
-              href="/"
-              className={`p-2 rounded-full transition-colors ${
-                isDarkMode 
-                  ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-200' 
-                  : 'hover:bg-gray-100 text-gray-600 hover:text-black'
-              }`}
-              aria-label="Back to home"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div className={`p-2 rounded-full ${
-              isDarkMode ? 'bg-gray-800' : 'bg-gray-100'
-            }`}>
-              <Compass className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="font-semibold text-sm">Explore AI</h1>
-              <p className={`text-xs ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-600'
-              }`}>
-                Discover AI capabilities and tools
-              </p>
+      <div className="relative z-10">
+        <NavBar items={navItems} />
+        
+        {/* Input Phase */}
+        {currentPhase === 'input' && (
+          <div className="flex items-start justify-center min-h-screen px-4 pt-[25vh]">
+            <div className="w-full max-w-2xl">
+              <PromptInputBox 
+                onSend={handleSendMessage}
+                placeholder="What would you like to explore? (e.g., 'How does quantum computing work?')"
+                isLoading={isLoading}
+                onThinkModeChange={handleThinkModeChange}
+                isThinkMode={isThinkMode}
+                className="bg-white/95 backdrop-blur-md border-2 border-orange-400/60 shadow-2xl ring-2 ring-yellow-400/30"
+              />
             </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="mb-8 text-center">
-          <h2 className="text-2xl font-bold mb-4">Explore AI Capabilities</h2>
-          <p className={`text-sm max-w-2xl mx-auto ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            Dive into different aspects of AI technology. From creative tools to knowledge exploration, 
-            discover what's possible with modern artificial intelligence.
-          </p>
-        </div>
-
-        {/* Categories Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {exploreCategories.map((category, index) => {
-            const Icon = category.icon;
-            return (
-              <div
-                key={index}
-                className={`rounded-lg border p-6 transition-all hover:scale-105 cursor-pointer ${
-                  isDarkMode 
-                    ? 'bg-gray-900/50 border-gray-800 hover:bg-gray-800/50' 
-                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                }`}
-              >
-                <div className="flex items-center gap-4 mb-4">
-                  <div className={`p-3 rounded-full bg-gradient-to-r ${category.color}`}>
-                    <Icon className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-base">{category.title}</h3>
-                    <p className={`text-xs ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`}>
-                      {category.description}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2">
-                  {category.items.map((item, itemIndex) => (
-                    <div
-                      key={itemIndex}
-                      className={`px-3 py-2 rounded text-xs text-center transition-colors ${
-                        isDarkMode 
-                          ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                          : 'bg-white text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      {item}
-                    </div>
-                  ))}
+        {/* Exploring Phase */}
+        {currentPhase === 'exploring' && (
+          <div className="flex items-start justify-center min-h-screen px-4 pt-[25vh]">
+            <div className="w-full max-w-2xl">
+              <div className="bg-white/90 backdrop-blur-md rounded-2xl p-8 shadow-2xl">
+                <div className="flex items-center justify-center space-x-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+                  <span className="text-lg font-medium text-gray-800">Exploring "{exploreTopic}"...</span>
                 </div>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Coming Soon Section */}
-        <div className="mt-12 text-center">
-          <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${
-            isDarkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'
-          }`}>
-            <Sparkles className="w-4 h-4" />
-            <span className="text-xs font-medium">More features coming soon!</span>
+            </div>
           </div>
-        </div>
+        )}
+
+
       </div>
     </div>
   );

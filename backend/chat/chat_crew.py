@@ -85,7 +85,7 @@ class ChatCrew:
             
             # Force research if explicitly requested
             if force_research:
-                logger.info(f"🔍 FORCING RESEARCH MODE - User enabled think mode for: {user_message[:50]}...")
+                logger.info(f"FORCING RESEARCH MODE - User enabled think mode for: {user_message[:50]}...")
                 return self._chat_with_research(user_message, conversation_history, "Forced research mode via think mode")
             
             # First, analyze context to determine if research is needed
@@ -95,10 +95,10 @@ class ChatCrew:
             needs_research = self._needs_research(analysis_result, user_message)
             
             if needs_research:
-                logger.info(f"🔍 RESEARCH TRIGGERED - Keywords detected in: {user_message[:50]}...")
+                logger.info(f"RESEARCH TRIGGERED - Keywords detected in: {user_message[:50]}...")
                 return self._chat_with_research(user_message, conversation_history, analysis_result)
             else:
-                logger.info(f"💬 SIMPLE CHAT - No research needed for: {user_message[:50]}...")
+                logger.info(f"SIMPLE CHAT - No research needed for: {user_message[:50]}...")
                 return self._simple_chat(user_message)
                 
         except Exception as e:
@@ -178,7 +178,16 @@ class ChatCrew:
                 "metadata": {
                     "response_type": "simple_chat",
                     "research_used": False,
-                    "agents_used": ["chat_assistant"]
+                    "agents_used": ["Conversational AI Assistant"],
+                    "agent_hierarchy": [
+                        {
+                            "agent": "Conversational AI Assistant",
+                            "role": "Primary response generator",
+                            "order": 1,
+                            "status": "completed"
+                        }
+                    ],
+                    "execution_flow": "Simple chat flow: User input → Conversational AI Assistant → Response"
                 }
             }
             
@@ -192,8 +201,8 @@ class ChatCrew:
             logger.info("Processing chat with research - FORCING EXA SEARCH")
             
             # FORCE EXA SEARCH FIRST - This bypasses the agent tool-calling issue
-            search_query = user_message.replace("[Search: ", "").replace("]", "").strip()
-            logger.info(f"🔍 Executing forced EXA search for: {search_query}")
+            search_query = user_message.strip()  # Use the message directly as search query
+            logger.info(f"Executing forced EXA search for: {search_query}")
             
             search_results = "No search results available"
             search_success = False
@@ -202,10 +211,13 @@ class ChatCrew:
                 try:
                     search_results = exa_search_tool._run(search_query)
                     search_success = True
-                    logger.info(f"✅ EXA search completed - {len(search_results)} characters returned")
+                    logger.info(f"EXA search completed - {len(search_results)} characters returned")
                 except Exception as e:
-                    logger.error(f"❌ EXA search failed: {e}")
+                    logger.error(f"EXA search failed: {e}")
                     search_results = f"Search error: {str(e)}"
+            
+            # Extract sources from search results
+            sources = self._extract_sources_from_search_results(search_results)
             
             # Create enhanced message with search results
             enhanced_message = f"""
@@ -214,8 +226,30 @@ class ChatCrew:
             CURRENT SEARCH RESULTS FROM EXA (as of {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}):
             {search_results}
             
-            IMPORTANT: Base your response ONLY on the above search results. These are current, real-time results.
-            Do not mention knowledge cutoffs or training data. Present the information as current and accurate.
+            CRITICAL FORMATTING REQUIREMENTS:
+            - **FORMAT YOUR ENTIRE RESPONSE IN MARKDOWN**
+            - Start with a ## heading that summarizes the topic
+            - Use **bold** for key findings and important information
+            - Use bullet points (- ) for listing information
+            - Use > quotes for highlighting important sources or quotes
+            - Use ### subheadings to organize different aspects
+            - **NEVER use emojis in your response**
+            - Keep responses professional and text-only
+            - **MANDATORY: End your response with a "### Sources" section listing all source URLs**
+            
+            CONTENT REQUIREMENTS:
+            - Base your response ONLY on the above search results
+            - These are current, real-time results from {datetime.now().strftime('%Y-%m-%d')}
+            - Do not mention knowledge cutoffs or training data
+            - Present information as current and accurate
+            - Include source attribution where possible
+            - Structure like a professional web search response
+            - **MANDATORY: Your response MUST end with exactly this section:**
+            
+            ### Sources
+            {chr(10).join(f"- {source}" for source in sources)}
+            
+            **DO NOT modify or change the Sources section format above. Use it exactly as shown.**
             """
             
             # Create response task with search results embedded
@@ -238,7 +272,28 @@ class ChatCrew:
                     "search_query": search_query,
                     "search_results_length": len(search_results),
                     "search_timestamp": datetime.now().isoformat(),
-                    "agents_used": ["chat_assistant"],  # Only response agent needed
+                    "agents_used": ["Context Analyzer", "EXA Search Tool", "Conversational AI Assistant"],
+                    "agent_hierarchy": [
+                        {
+                            "agent": "Context Analyzer",
+                            "role": "Query analysis and context determination",
+                            "order": 1,
+                            "status": "completed"
+                        },
+                        {
+                            "agent": "EXA Search Tool",
+                            "role": "Real-time information retrieval",
+                            "order": 2,
+                            "status": "completed" if search_success else "failed"
+                        },
+                        {
+                            "agent": "Conversational AI Assistant",
+                            "role": "Research synthesis and response generation",
+                            "order": 3,
+                            "status": "completed"
+                        }
+                    ],
+                    "execution_flow": "Research chat flow: User input → Context Analyzer → EXA Search → Conversational AI Assistant → Response",
                     "analysis": analysis_result
                 }
             }
@@ -246,6 +301,40 @@ class ChatCrew:
         except Exception as e:
             logger.error(f"Error in research chat: {str(e)}")
             raise
+    
+    def _extract_sources_from_search_results(self, search_results: str) -> List[str]:
+        """Extract URLs from EXA search results for sources section"""
+        import re
+        
+        sources = []
+        try:
+            # Pattern to match URLs in the EXA search results format
+            # Looking for "URL: https://..." pattern
+            url_pattern = r'URL:\s*(https?://[^\s\n]+)'
+            urls = re.findall(url_pattern, search_results)
+            
+            # Clean up URLs and remove duplicates
+            for url in urls:
+                url = url.strip()
+                if url and url not in sources and url != 'No URL':
+                    sources.append(url)
+            
+            # If no URLs found, try alternative patterns
+            if not sources:
+                # Try finding any URLs in the text
+                general_url_pattern = r'https?://[^\s\n]+'
+                urls = re.findall(general_url_pattern, search_results)
+                for url in urls:
+                    url = url.strip()
+                    if url and url not in sources:
+                        sources.append(url)
+            
+            logger.info(f"Extracted {len(sources)} sources from search results")
+            return sources
+            
+        except Exception as e:
+            logger.error(f"Error extracting sources: {e}")
+            return []
     
     def get_crew_info(self) -> Dict[str, Any]:
         """Get information about the chat crew setup"""
