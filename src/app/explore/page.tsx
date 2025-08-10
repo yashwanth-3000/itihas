@@ -2,16 +2,17 @@
 
 import { NavBar } from "@/components/ui/tubelight-navbar";
 import { PromptInputBox } from "@/components/ui/ai-prompt-box";
+import { AnimatedTestimonials } from "@/components/ui";
 import VaporizeTextCycle, { Tag as VaporizeTag } from "@/components/ui/vaporize-text-cycle";
 import { Home, MessageCircle, User, Compass, BookOpen, ArrowLeft, Sparkles, Telescope, Map, Lightbulb } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Merriweather } from "next/font/google";
-
-// Serif font for heritage vibe (must be module scope)
-const merriweather = Merriweather({ subsets: ["latin"], weight: ["700", "900"] });
+import { useRouter } from "next/navigation";
+// Apple system font stack for a clean, native feel
+const APPLE_SYSTEM_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, system-ui, sans-serif";
 
 export default function ExplorePage() {
+  const router = useRouter();
   const [currentPhase, setCurrentPhase] = useState<'input' | 'exploring'>('input');
   const [isLoading, setIsLoading] = useState(false);
   const [isThinkMode, setIsThinkMode] = useState(false);
@@ -39,16 +40,9 @@ export default function ExplorePage() {
 
   const handleSendMessage = async (message: string, files?: File[]) => {
     if (!message.trim() && !files?.length) return;
-    
-    setExploreTopic(message);
-    setCurrentPhase('exploring');
-    setIsLoading(true);
-    
-    // Simulate exploration process
-    setTimeout(() => {
-      setIsLoading(false);
-      setCurrentPhase('input');
-    }, 3000);
+    // Navigate to dedicated results page with query param
+    const q = encodeURIComponent(message.trim());
+    router.push(`/explore/results?q=${q}`);
   };
 
   const handleThinkModeChange = (newThinkMode: boolean) => {
@@ -57,7 +51,8 @@ export default function ExplorePage() {
 
   // Show line, start vapor after initialDelay, hide after vapor completes
   useEffect(() => {
-    const total = HEADLINE_ANIM.initialDelayMs + HEADLINE_ANIM.vaporizeDurationMs + 200;
+    // Keep intro visible long enough for both lines to vaporize sequentially
+    const total = HEADLINE_ANIM.initialDelayMs + (HEADLINE_ANIM.vaporizeDurationMs * 2) + 400;
     const timer = setTimeout(() => setShowIntro(false), total);
     return () => clearTimeout(timer);
   }, []);
@@ -66,23 +61,25 @@ export default function ExplorePage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const w = window.innerWidth;
-    let size = 44;
-    if (w < 360) size = 24;
-    else if (w < 420) size = 26;
-    else if (w < 480) size = 28;
-    else if (w < 640) size = 32;
-    else if (w < 768) size = 38;
-    else if (w < 1024) size = 48;
-    else if (w < 1280) size = 60;
-    else size = 68;
+    let size = 52;
+    if (w < 360) size = 30;
+    else if (w < 420) size = 32;
+    else if (w < 480) size = 34;
+    else if (w < 640) size = 40;
+    else if (w < 768) size = 48;
+    else if (w < 1024) size = 60;
+    else if (w < 1280) size = 74;
+    else size = 88;
     setHeadlineFontSize(size);
   }, []);
+
+  const isExploring = currentPhase === 'exploring';
 
   return (
     <div 
       className="min-h-screen relative"
       style={{
-        backgroundImage: 'url(/explore.png)',
+        backgroundImage: `url(${isExploring ? '/background.png' : '/explore.png'})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
@@ -96,31 +93,39 @@ export default function ExplorePage() {
         
         {/* Input Phase */}
         {currentPhase === 'input' && (
-          <div className="flex flex-col items-center min-h-screen px-4 pt-[20vh] md:pt-[22vh] lg:pt-[22vh]">
+          <div className="flex flex-col items-center min-h-screen px-4 pt-[15vh] md:pt-[17vh] lg:pt-[17vh]">
             {/* Vaporize headline at ~1/3 of page, then hide after ~2.6s */}
             {showIntro && (
-              <div className={`w-full max-w-[1100px] mb-8 space-y-2 md:space-y-3 text-center ${merriweather.className}`}>
-                <div className="w-full h-[60px] sm:h-[76px] md:h-[92px] lg:h-[104px]">
+              <div className="w-full max-w-[1100px] mb-8 space-y-0 text-center">
+                <div className="w-full h-[72px] sm:h-[88px] md:h-[108px] lg:h-[124px]">
                   <VaporizeTextCycle
                     texts={["Uncover your lost stories, preserve your heritage"]}
-                    font={{ fontFamily: "Merriweather, serif", fontSize: `${headlineFontSize}px`, fontWeight: 800 }}
+                    font={{ fontFamily: APPLE_SYSTEM_FONT, fontSize: `${headlineFontSize}px`, fontWeight: 800 }}
                     color="rgba(255,255,255,0.98)"
                     spread={3}
                     density={4}
                     animation={{ vaporizeDuration: HEADLINE_ANIM.vaporizeDurationMs/1000, fadeInDuration: HEADLINE_ANIM.fadeInDurationMs/1000, waitDuration: HEADLINE_ANIM.waitDurationMs/1000, initialDelayMs: HEADLINE_ANIM.initialDelayMs }}
+                    // Force precise center alignment in canvas
                     direction="left-to-right"
                     alignment="center"
                     tag={VaporizeTag.H1}
                   />
                 </div>
-                <div className="w-full h-[56px] sm:h-[72px] md:h-[88px] lg:h-[100px]">
+                <div className="w-full h-[64px] sm:h-[84px] md:h-[104px] lg:h-[120px]">
                   <VaporizeTextCycle
                     texts={["and culture before it fades away."]}
-                    font={{ fontFamily: "Merriweather, serif", fontSize: `${Math.max(28, headlineFontSize - 4)}px`, fontWeight: 700 }}
+                    font={{ fontFamily: APPLE_SYSTEM_FONT, fontSize: `${headlineFontSize}px`, fontWeight: 800 }}
                     color="rgba(255,255,255,0.95)"
                     spread={3}
                     density={4}
-                    animation={{ vaporizeDuration: HEADLINE_ANIM.vaporizeDurationMs/1000, fadeInDuration: HEADLINE_ANIM.fadeInDurationMs/1000, waitDuration: HEADLINE_ANIM.waitDurationMs/1000, initialDelayMs: HEADLINE_ANIM.initialDelayMs + 100 }}
+                    // Start after the first line completes vaporizing
+                    animation={{
+                      vaporizeDuration: HEADLINE_ANIM.vaporizeDurationMs/1000,
+                      fadeInDuration: HEADLINE_ANIM.fadeInDurationMs/1000,
+                      waitDuration: HEADLINE_ANIM.waitDurationMs/1000,
+                      initialDelayMs: HEADLINE_ANIM.initialDelayMs + HEADLINE_ANIM.vaporizeDurationMs + 120,
+                    }}
+                    // Force precise center alignment in canvas
                     direction="left-to-right"
                     alignment="center"
                     tag={VaporizeTag.H1}
@@ -155,14 +160,48 @@ export default function ExplorePage() {
 
         {/* Exploring Phase */}
         {currentPhase === 'exploring' && (
-          <div className="flex items-start justify-center min-h-screen px-4 pt-[25vh]">
-            <div className="w-full max-w-2xl">
-              <div className="bg-white/90 backdrop-blur-md rounded-2xl p-8 shadow-2xl">
-                <div className="flex items-center justify-center space-x-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-                  <span className="text-lg font-medium text-gray-800">Exploring "{exploreTopic}"...</span>
-                </div>
-              </div>
+          <div className="flex items-start justify-center min-h-screen px-4 pt-[18vh]">
+            <div className="w-full max-w-5xl">
+              <AnimatedTestimonials
+                autoplay
+                testimonials={[
+                  {
+                    quote:
+                      `Exploring: ${exploreTopic}. The attention to detail and innovative features have completely transformed our workflow. This is exactly what we've been looking for.`,
+                    name: "Sarah Chen",
+                    designation: "Product Manager at TechFlow",
+                    src: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=1600&auto=format&fit=crop",
+                  },
+                  {
+                    quote:
+                      "Implementation was seamless and the results exceeded our expectations. The platform's flexibility is remarkable.",
+                    name: "Michael Rodriguez",
+                    designation: "CTO at InnovateSphere",
+                    src: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=1600&auto=format&fit=crop",
+                  },
+                  {
+                    quote:
+                      "This solution has significantly improved our team's productivity. The intuitive interface makes complex tasks simple.",
+                    name: "Emily Watson",
+                    designation: "Operations Director at CloudScale",
+                    src: "https://images.unsplash.com/photo-1623582854588-d60de57fa33f?q=80&w=1600&auto=format&fit=crop",
+                  },
+                  {
+                    quote:
+                      "Outstanding support and robust features. It's rare to find a product that delivers on all its promises.",
+                    name: "James Kim",
+                    designation: "Engineering Lead at DataPro",
+                    src: "https://images.unsplash.com/photo-1636041293178-808a6762ab39?q=80&w=1600&auto=format&fit=crop",
+                  },
+                  {
+                    quote:
+                      "The scalability and performance have been game-changing for our organization. Highly recommend to any growing business.",
+                    name: "Lisa Thompson",
+                    designation: "VP of Technology at FutureNet",
+                    src: "https://images.unsplash.com/photo-1624561172888-ac93c696e10c?q=80&w=1600&auto=format&fit=crop",
+                  },
+                ]}
+              />
             </div>
           </div>
         )}

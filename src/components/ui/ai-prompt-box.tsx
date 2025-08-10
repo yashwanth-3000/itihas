@@ -418,10 +418,11 @@ interface PromptInputBoxProps {
   isThinkMode?: boolean;
   onShowLogsToggle?: () => void;
   showLogs?: boolean;
+  initialValue?: string;
 }
 export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxProps>((props, ref) => {
-  const { onSend = () => {}, isLoading = false, placeholder = "Type your message here...", className, onThinkModeChange, isThinkMode = false, onShowLogsToggle, showLogs = false } = props;
-  const [input, setInput] = React.useState("");
+  const { onSend = () => {}, isLoading = false, placeholder = "Type your message here...", className, onThinkModeChange, isThinkMode = false, onShowLogsToggle, showLogs = false, initialValue } = props;
+  const [input, setInput] = React.useState(initialValue || "");
   const [files, setFiles] = React.useState<File[]>([]);
   const [filePreviews, setFilePreviews] = React.useState<{ [key: string]: string }>({});
   const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
@@ -435,6 +436,13 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
   React.useEffect(() => {
     setShowThink(isThinkMode);
   }, [isThinkMode]);
+
+  // Sync external initial value into input when it changes
+  React.useEffect(() => {
+    if (typeof initialValue === 'string') {
+      setInput(initialValue);
+    }
+  }, [initialValue]);
 
   const handleToggleChange = (value: string) => {
     if (value === "search") {

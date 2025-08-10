@@ -8,6 +8,7 @@ import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { Moon, Sun, Bot, User, ArrowLeft, Home, MessageCircle, Compass, BookOpen } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import AgentPlan from "@/components/ui/agent-plan";
 import { AgentWorkflow, WorkflowPlan } from "@/lib/agent-workflow";
 
@@ -21,6 +22,7 @@ interface Message {
 }
 
 export default function ChatPage() {
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -57,15 +59,18 @@ export default function ChatPage() {
 
   // Initialize messages after hydration to avoid hydration mismatch
   useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([{
+    if (messages.length > 0) return;
+    const prefill = searchParams.get('prefill');
+    const initial: Message[] = [
+      {
         id: '1',
         content: `Hello! I'm your AI assistant. I can help you with web development, data analysis, research, and more. You can change the model using the dropdown in the header. What would you like me to work on?`,
         sender: 'bot',
         timestamp: new Date(),
-      }]);
-    }
-  }, [messages.length, selectedModel]);
+      },
+    ];
+    setMessages(initial);
+  }, [messages.length, selectedModel, searchParams]);
 
   useEffect(() => {
     scrollToBottom();
@@ -750,6 +755,7 @@ export default function ChatPage() {
               isThinkMode={isThinkMode}
               onShowLogsToggle={() => setShowLogs(!showLogs)}
               showLogs={showLogs}
+              initialValue={searchParams.get('prefill') || ''}
               className={`transition-colors ${
                 isDarkMode 
                   ? 'bg-black border-gray-800' 
