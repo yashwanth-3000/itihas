@@ -1,40 +1,52 @@
 # Explore Module
 
-This module will handle content discovery, browsing, and exploration functionality.
+This module handles an agentic exploration workflow using IBM Watsonx for reasoning and EXA web search for live information.
 
-## Planned Features
+## Features
 
-- **Content Discovery**: Browse and discover created comics and content
-- **Search & Filter**: Advanced search and filtering capabilities
-- **Recommendations**: AI-powered content recommendations
-- **Categories**: Organize content by topics, genres, and themes
-- **User Collections**: Personal content libraries and favorites
+- **Planner → Research → Synthesis** workflow via CrewAI
+- **IBM Watsonx only** for inference (granite-3-8b-instruct)
+- **EXA semantic web search** for current info (forced at least once)
+- **FastAPI endpoint** at `/explore` returning structured JSON for UI
 
-## Structure (To be implemented)
+## Structure
 
 ```
 explore/
 ├── __init__.py
 ├── README.md
-├── search/          # Search and indexing functionality
-├── recommendations/ # AI-powered recommendation engine
-├── categories/      # Content categorization logic
-├── collections/     # User collection management
-├── api/            # Explore API endpoints
-└── tests/          # Explore functionality tests
+├── config.py        # Config (IBM, EXA)
+├── agents.py        # Planner, Researcher (EXA tool), Synthesizer
+├── tasks.py         # Task prompts for each step
+├── crew.py          # Orchestrates plan → research → synthesize
+├── main.py          # FastAPI app exposing /explore
+└── start.py         # Simple runner
 ```
 
 ## Getting Started
 
-This module is currently in planning phase. Components will be added as the explore functionality is developed.
+Start the API:
+
+```bash
+cd backend
+pip install -r requirements.txt
+cd explore
+python start.py
+```
+
+Endpoint: `http://localhost:8002/explore`
+
+Example:
+
+```bash
+curl -X POST http://localhost:8002/explore \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "ancient temples near Delhi"}'
+```
 
 ## Integration
 
-The explore module will integrate with:
-- Frontend explore interface at `/explore`
-- Comic generation module for content indexing
-- Database for content storage and retrieval
-- Search indexing services (e.g., Elasticsearch)
+The explore module integrates with the frontend `/explore/results` page, which calls the `/explore` endpoint and renders the structured results (summary, items, sources). 
 
 ## Future Enhancements
 

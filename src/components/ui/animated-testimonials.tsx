@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, ArrowRight, MapPin } from "lucide-react";
+import { ArrowLeft, ArrowRight, MapPin, Camera } from "lucide-react";
 
 // Deterministic PRNG to avoid hydration mismatch from Math.random on server vs client
 function createSeededRandom(seed: number) {
@@ -28,14 +28,21 @@ export function AnimatedTestimonials({
   autoplay = false,
   className,
   inverted = false,
+  onOpenStreet,
+  onActiveChange,
 }: {
   testimonials: Testimonial[];
   autoplay?: boolean;
   className?: string;
   /** If true, optimizes colors for dark/photo backgrounds */
   inverted?: boolean;
+  /** Called when user wants to open Street View for the active place */
+  onOpenStreet?: (t: Testimonial) => void;
+  /** Called whenever the active testimonial changes (via arrows/autoplay) */
+  onActiveChange?: (t: Testimonial, index: number) => void;
 }) {
   const [active, setActive] = useState(0);
+  const [streetAnimKey, setStreetAnimKey] = useState(0);
 
   const handleNext = () => {
     setActive(prev => (prev + 1) % testimonials.length);
@@ -52,6 +59,13 @@ export function AnimatedTestimonials({
     const interval = setInterval(handleNext, 5000);
     return () => clearInterval(interval);
   }, [autoplay]);
+
+  // Notify parent when the active card changes
+  useEffect(() => {
+    if (typeof onActiveChange === "function" && testimonials.length > 0) {
+      onActiveChange(testimonials[active], active);
+    }
+  }, [active, onActiveChange, testimonials]);
 
   // Precompute stable rotate angles for each card so SSR and client match
   const rotateAngles = useMemo(() => {
@@ -78,7 +92,7 @@ export function AnimatedTestimonials({
             <AnimatePresence>
               {testimonials.map((testimonial, index) => (
                 <motion.div
-                  key={testimonial.src}
+                  key={`${testimonial.name}-${index}`}
                   initial={{ opacity: 0, scale: 0.9, z: -100, rotate: rotateAngles[index] }}
                   animate={{
                     opacity: isActive(index) ? 1 : 0.7,
@@ -98,6 +112,18 @@ export function AnimatedTestimonials({
                     width={800}
                     height={800}
                     draggable={false}
+                    unoptimized={testimonial.src.startsWith('http') || testimonial.src.includes('.png?v=')}
+                    onError={(e) => {
+                      try {
+                        // @ts-expect-error Next Image underlying img element
+                        const target = e.currentTarget;
+                        if (target.src !== '/explore.png') {
+                          target.src = '/explore.png';
+                        }
+                      } catch (err) {
+                        console.warn('Image fallback failed:', err);
+                      }
+                    }}
                     className={cn(
                       "h-full w-full rounded-3xl object-cover object-center",
                       inverted && "shadow-2xl ring-1 ring-white/20"
@@ -147,28 +173,47 @@ export function AnimatedTestimonials({
               ))}
             </motion.p>
           </motion.div>
-          <div className="flex items-center gap-4 pt-8 md:pt-0">
+          <div className="mt-6 md:mt-8 flex items-center flex-wrap gap-4">
             <span
               className={cn(
-                "px-3 py-1 rounded-full text-xs font-medium",
-                inverted ? "bg-white/10 ring-1 ring-white/20 text-white" : "bg-secondary/60 text-foreground"
+                "px-3 py-1 rounded-full text-xs font-medium backdrop-blur-sm",
+                inverted ? "bg-white/10 ring-1 ring-white/20 text-white" : "bg-secondary/60 text-foreground ring-1 ring-foreground/10"
               )}
               aria-live="polite"
             >
               {active + 1}/{testimonials.length}
             </span>
-            <button onClick={handlePrev} className={cn("h-9 w-9 rounded-full flex items-center justify-center group/button", inverted ? "bg-white/10 ring-1 ring-white/20 hover:bg-white/20" : "bg-secondary") }>
+            <button onClick={handlePrev} className={cn("h-9 w-9 rounded-full flex items-center justify-center group/button transition-all shadow-sm hover:shadow-md", inverted ? "bg-white/10 ring-1 ring-white/20 hover:bg-white/20" : "bg-secondary ring-1 ring-foreground/10") }>
               <ArrowLeft className={cn("h-5 w-5 transition-transform duration-300", inverted ? "text-white group-hover/button:rotate-12" : "text-foreground group-hover/button:rotate-12") } />
             </button>
-            <button onClick={handleNext} className={cn("h-9 w-9 rounded-full flex items-center justify-center group/button", inverted ? "bg-white/10 ring-1 ring-white/20 hover:bg-white/20" : "bg-secondary") }>
+            <button onClick={handleNext} className={cn("h-9 w-9 rounded-full flex items-center justify-center group/button transition-all shadow-sm hover:shadow-md", inverted ? "bg-white/10 ring-1 ring-white/20 hover:bg-white/20" : "bg-secondary ring-1 ring-foreground/10") }>
               <ArrowRight className={cn("h-5 w-5 transition-transform duration-300", inverted ? "text-white group-hover/button:-rotate-12" : "text-foreground group-hover/button:-rotate-12") } />
             </button>
+            <motion.button
+              key={streetAnimKey}
+              type="button"
+              whileHover={{ y: -1, scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              animate={{ scale: [1, 1.0, 1.04, 1], boxShadow: inverted ? ["0 0 0 rgba(0,0,0,0)", "0 8px 20px rgba(255,255,255,0.08)", "0 8px 20px rgba(255,255,255,0.12)", "0 0 0 rgba(0,0,0,0)"] : ["0 0 0 rgba(0,0,0,0)", "0 8px 20px rgba(0,0,0,0.08)", "0 8px 20px rgba(0,0,0,0.12)", "0 0 0 rgba(0,0,0,0)"] }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              onClick={() => {
+                setStreetAnimKey((k) => k + 1);
+                onOpenStreet?.(testimonials[active]);
+              }}
+              className={cn(
+                "relative inline-flex items-center gap-2 ml-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+                inverted ? "bg-white/10 ring-1 ring-white/25 text-white hover:bg-white/20" : "bg-secondary text-foreground ring-1 ring-foreground/10 hover:opacity-90"
+              )}
+            >
+              <Camera className={cn("h-4 w-4", inverted ? "text-white/90" : "text-foreground/90")} />
+              <span>Street View 260°</span>
+            </motion.button>
             <Link
               prefetch={false}
               href={`/chat?prefill=${encodeURIComponent(buildPrefill(testimonials[active]))}`}
               className={cn(
-                "ml-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
-                inverted ? "bg-white text-black hover:bg-white/90" : "bg-black text-white hover:bg-black/80"
+                "ml-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all shadow-sm hover:shadow-md",
+                inverted ? "bg-white text-black hover:bg-white/90" : "bg-black text-white hover:bg-black/85"
               )}
             >
               Learn more

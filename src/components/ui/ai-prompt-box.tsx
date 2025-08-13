@@ -3,7 +3,7 @@
 import React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ArrowUp, Paperclip, Square, X, StopCircle, Mic, Globe, BrainCog, ScrollText } from "lucide-react";
+import { ArrowUp, Paperclip, Square, X, StopCircle, Mic, Globe, BrainCog, ScrollText, MapPin } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../lib/utils";
 
@@ -419,18 +419,26 @@ interface PromptInputBoxProps {
   onShowLogsToggle?: () => void;
   showLogs?: boolean;
   initialValue?: string;
+  // New options for specialized UIs (e.g., Explore page)
+  searchAlwaysOn?: boolean; // keep Search mode always enabled (non-toggle)
+  hideThinkAndLogs?: boolean; // hide Think and Logs controls entirely
+  showLocationButton?: boolean; // show Location control to attach coordinates
+  autoDetectLocation?: boolean; // automatically detect location on component mount
 }
 export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxProps>((props, ref) => {
-  const { onSend = () => {}, isLoading = false, placeholder = "Type your message here...", className, onThinkModeChange, isThinkMode = false, onShowLogsToggle, showLogs = false, initialValue } = props;
+  const { onSend = () => {}, isLoading = false, placeholder = "Type your message here...", className, onThinkModeChange, isThinkMode = false, onShowLogsToggle, showLogs = false, initialValue, searchAlwaysOn = false, hideThinkAndLogs = false, showLocationButton = false, autoDetectLocation = false } = props;
   const [input, setInput] = React.useState(initialValue || "");
   const [files, setFiles] = React.useState<File[]>([]);
   const [filePreviews, setFilePreviews] = React.useState<{ [key: string]: string }>({});
   const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
   const [isRecording, setIsRecording] = React.useState(false);
-  const [showSearch, setShowSearch] = React.useState(false);
+  const [showSearch, setShowSearch] = React.useState(searchAlwaysOn);
   const [showThink, setShowThink] = React.useState(isThinkMode);
   const uploadInputRef = React.useRef<HTMLInputElement>(null);
   const promptBoxRef = React.useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = React.useState<{ lat: number; lng: number } | null>(null);
+  const [isLocating, setIsLocating] = React.useState(false);
+  const [placeName, setPlaceName] = React.useState<string | null>(null);
 
   // Sync showThink state with isThinkMode prop
   React.useEffect(() => {
@@ -444,11 +452,21 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
     }
   }, [initialValue]);
 
+  // Auto-detect location on mount if enabled
+  React.useEffect(() => {
+    if (autoDetectLocation && !coords) {
+      requestLocation();
+    }
+  }, [autoDetectLocation]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleToggleChange = (value: string) => {
     if (value === "search") {
-      setShowSearch((prev) => !prev);
-      setShowThink(false);
-      onThinkModeChange?.(false);
+      // When search is locked on, ignore toggling
+      if (!searchAlwaysOn) {
+        setShowSearch((prev) => !prev);
+        setShowThink(false);
+        onThinkModeChange?.(false);
+      }
     } else if (value === "think") {
       const newThinkState = !showThink;
       setShowThink(newThinkState);
@@ -520,13 +538,20 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
     return () => document.removeEventListener("paste", handlePaste);
   }, [handlePaste]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (input.trim() || files.length > 0) {
-      let messagePrefix = "";
-      if (showSearch) messagePrefix = "[Search: ";
-      else if (showThink) messagePrefix = "[Think: ";
-      const formattedInput = messagePrefix ? `${messagePrefix}${input}]` : input;
-      onSend(formattedInput, files);
+      // Lock search mode if requested
+      const useSearch = searchAlwaysOn ? true : showSearch;
+      // Ensure place name is available if we have coordinates
+      if (coords && !placeName) {
+        try {
+          const n = await reverseGeocode(coords.lat, coords.lng);
+          setPlaceName(n);
+        } catch {}
+      }
+      let base = useSearch ? `[Search: ${input}]` : showThink ? `[Think: ${input}]` : input;
+      if (coords) base = `${base} [Location: ${placeName || 'Current Location'}]`;
+      onSend(base, files);
       setInput("");
       setFiles([]);
       setFilePreviews({});
@@ -540,6 +565,86 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
     setIsRecording(false);
     onSend(`[Voice message - ${duration} seconds]`, []);
   };
+
+  const requestLocation = () => {
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) {
+      console.log('Geolocation not supported');
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCoords({ lat: position.coords.latitude, lng: position.coords.longitude });
+        setIsLocating(false);
+        reverseGeocode(position.coords.latitude, position.coords.longitude)
+          .then(name => setPlaceName(name))
+          .catch(() => setPlaceName(null));
+      },
+      (error) => {
+        console.log('Location error:', error.message);
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 60_000, timeout: 10_000 }
+    );
+  };
+
+  async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+    // Try Google's Geocoding API first (more reliable)
+    const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (googleApiKey) {
+      try {
+        const googleUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${googleApiKey}`;
+        const res = await fetch(googleUrl);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'OK' && data.results?.length > 0) {
+            const result = data.results[0];
+            // Extract city, state, country from address components
+            const components = result.address_components || [];
+            const city = components.find((c: any) => c.types.includes('locality'))?.long_name ||
+                        components.find((c: any) => c.types.includes('administrative_area_level_2'))?.long_name;
+            const state = components.find((c: any) => c.types.includes('administrative_area_level_1'))?.long_name;
+            const country = components.find((c: any) => c.types.includes('country'))?.long_name;
+            
+            const parts = [city, state, country].filter(Boolean);
+            if (parts.length > 0) {
+              return parts.join(', ');
+            }
+            // Fallback to formatted address
+            return result.formatted_address || null;
+          }
+        }
+      } catch (error) {
+        console.log('Google reverse geocoding failed:', error instanceof Error ? error.message : 'Unknown error');
+      }
+    }
+
+    // Fallback to Nominatim
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // Shorter timeout
+      
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`;
+      const res = await fetch(url, { 
+        headers: { 
+          'Accept': 'application/json',
+          'User-Agent': 'ExploreApp/1.0'
+        },
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!res.ok) return null;
+      const data = await res.json();
+      const a = data?.address || {};
+      const parts = [a.city || a.town || a.village || a.hamlet, a.state, a.country].filter(Boolean);
+      return (parts.join(', ') || data?.display_name || null);
+    } catch (error) {
+      console.log('Nominatim reverse geocoding failed (non-critical):', error instanceof Error ? error.message : 'Unknown error');
+      return null;
+    }
+  }
 
   const hasContent = input.trim() !== "" || files.length > 0;
 
@@ -618,7 +723,9 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
         >
           <PromptInputTextarea
             placeholder={
-              showSearch
+              searchAlwaysOn
+                ? placeholder
+                : showSearch
                 ? "Search the web..."
                 : showThink
                 ? "Think deeply..."
@@ -664,111 +771,110 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
             </PromptInputAction>
 
             <div className="flex items-center">
+              {/* Search pill (always visible). If searchAlwaysOn, it is locked ON */}
               <button
                 type="button"
                 onClick={() => handleToggleChange("search")}
+                aria-disabled={searchAlwaysOn}
                 className={cn(
                   "rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8",
-                  showSearch
+                  (searchAlwaysOn || showSearch)
                     ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white"
                     : "bg-transparent border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                 )}
               >
                 <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
                   <motion.div
-                    animate={{ rotate: showSearch ? 360 : 0, scale: showSearch ? 1.1 : 1 }}
-                    whileHover={{ rotate: showSearch ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
+                    animate={{ rotate: (searchAlwaysOn || showSearch) ? 360 : 0, scale: (searchAlwaysOn || showSearch) ? 1.1 : 1 }}
+                    whileHover={{ rotate: (searchAlwaysOn || showSearch) ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
                     transition={{ type: "spring", stiffness: 260, damping: 25 }}
                   >
-                    <Globe className={cn("w-4 h-4", showSearch ? "text-white dark:text-black" : "text-inherit")} />
+                    <Globe className={cn("w-4 h-4", (searchAlwaysOn || showSearch) ? "text-white dark:text-black" : "text-inherit")} />
                   </motion.div>
                 </div>
-                <AnimatePresence>
-                  {showSearch && (
-                    <motion.span
-                      initial={{ width: 0, opacity: 0 }}
-                      animate={{ width: "auto", opacity: 1 }}
-                      exit={{ width: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="text-[10px] overflow-hidden whitespace-nowrap text-white dark:text-black flex-shrink-0"
-                    >
-                      Search
-                    </motion.span>
-                  )}
-                </AnimatePresence>
+                <span className="text-[10px] overflow-hidden whitespace-nowrap text-inherit flex-shrink-0">Search</span>
               </button>
 
-              <CustomDivider />
-
-              <button
-                type="button"
-                onClick={() => handleToggleChange("think")}
-                className={cn(
-                  "rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8",
-                  showThink
-                    ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white"
-                    : "bg-transparent border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-                )}
-              >
-                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                  <motion.div
-                    animate={{ rotate: showThink ? 360 : 0, scale: showThink ? 1.1 : 1 }}
-                    whileHover={{ rotate: showThink ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
-                    transition={{ type: "spring", stiffness: 260, damping: 25 }}
+              {showLocationButton && (
+                <>
+                  <CustomDivider />
+                  <button
+                    type="button"
+                    onClick={requestLocation}
+                    className={cn(
+                      "rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8",
+                      coords
+                        ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white"
+                        : "bg-transparent border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    )}
+                    disabled={isRecording}
                   >
-                    <BrainCog className={cn("w-4 h-4", showThink ? "text-white dark:text-black" : "text-inherit")} />
-                  </motion.div>
-                </div>
-                <AnimatePresence>
-                  {showThink && (
-                    <motion.span
-                      initial={{ width: 0, opacity: 0 }}
-                      animate={{ width: "auto", opacity: 1 }}
-                      exit={{ width: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="text-[10px] overflow-hidden whitespace-nowrap text-white dark:text-black flex-shrink-0"
-                    >
-                      Think
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </button>
+                    <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                      <motion.div
+                        animate={{ rotate: coords ? 360 : 0, scale: coords ? 1.1 : 1 }}
+                        whileHover={{ rotate: coords ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
+                        transition={{ type: "spring", stiffness: 260, damping: 25 }}
+                      >
+                        <MapPin className={cn("w-4 h-4", coords ? "text-white dark:text-black" : "text-inherit")} />
+                      </motion.div>
+                    </div>
+                    <span className="text-[10px] overflow-hidden whitespace-nowrap text-inherit flex-shrink-0">
+                      {isLocating ? "Locating..." : placeName || (coords ? "Location detected" : "Location")}
+                    </span>
+                  </button>
+                </>
+              )}
 
-              <CustomDivider />
-
-              <button
-                type="button"
-                onClick={onShowLogsToggle}
-                className={cn(
-                  "rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8",
-                  showLogs
-                    ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white"
-                    : "bg-transparent border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-                )}
-              >
-                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                  <motion.div
-                    animate={{ rotate: showLogs ? 360 : 0, scale: showLogs ? 1.1 : 1 }}
-                    whileHover={{ rotate: showLogs ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
-                    transition={{ type: "spring", stiffness: 260, damping: 25 }}
+              {!hideThinkAndLogs && (
+                <>
+                  <CustomDivider />
+                  <button
+                    type="button"
+                    onClick={() => handleToggleChange("think")}
+                    className={cn(
+                      "rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8",
+                      showThink
+                        ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white"
+                        : "bg-transparent border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    )}
                   >
-                    <ScrollText className={cn("w-4 h-4", showLogs ? "text-white dark:text-black" : "text-inherit")} />
-                  </motion.div>
-                </div>
-                <AnimatePresence>
-                  {showLogs && (
-                    <motion.span
-                      initial={{ width: 0, opacity: 0 }}
-                      animate={{ width: "auto", opacity: 1 }}
-                      exit={{ width: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="text-[10px] overflow-hidden whitespace-nowrap text-white dark:text-black flex-shrink-0"
-                    >
-                      Logs
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </button>
+                    <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                      <motion.div
+                        animate={{ rotate: showThink ? 360 : 0, scale: showThink ? 1.1 : 1 }}
+                        whileHover={{ rotate: showThink ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
+                        transition={{ type: "spring", stiffness: 260, damping: 25 }}
+                      >
+                        <BrainCog className={cn("w-4 h-4", showThink ? "text-white dark:text-black" : "text-inherit")} />
+                      </motion.div>
+                    </div>
+                    <span className="text-[10px] overflow-hidden whitespace-nowrap text-inherit flex-shrink-0">Think</span>
+                  </button>
+
+                  <CustomDivider />
+
+                  <button
+                    type="button"
+                    onClick={onShowLogsToggle}
+                    className={cn(
+                      "rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8",
+                      showLogs
+                        ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white"
+                        : "bg-transparent border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    )}
+                  >
+                    <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                      <motion.div
+                        animate={{ rotate: showLogs ? 360 : 0, scale: showLogs ? 1.1 : 1 }}
+                        whileHover={{ rotate: showLogs ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
+                        transition={{ type: "spring", stiffness: 260, damping: 25 }}
+                      >
+                        <ScrollText className={cn("w-4 h-4", showLogs ? "text-white dark:text-black" : "text-inherit")} />
+                      </motion.div>
+                    </div>
+                    <span className="text-[10px] overflow-hidden whitespace-nowrap text-inherit flex-shrink-0">Logs</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
 

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test All Fixes</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 15px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 8px 16px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        h2 { color: #333; }
+        .fix-status { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Explore Fixes Verification</h1>
+    
+    <div class="test">
+        <h3>✅ Fix 1: EXA Search Domain Error</h3>
+        <p><strong>Issue:</strong> All searches failed with "Domain must include a top-level domain: tourism"</p>
+        <p><strong>Fix:</strong> Removed invalid domain filtering, let EXA search all domains</p>
+        <button onclick="testEXAFix()">Test EXA Search</button>
+        <div id="exa-result"></div>
+    </div>
+    
+    <div class="test">
+        <h3>✅ Fix 2: Geocoding Stuck</h3>
+        <p><strong>Issue:</strong> "Locating panorama..." stuck indefinitely</p>
+        <p><strong>Fix:</strong> Added 10-second timeout, better error handling, console logging</p>
+        <p class="fix-status">Status: Fixed with timeout and error handling</p>
+    </div>
+    
+    <div class="test">
+        <h3>✅ Fix 3: Location Display</h3>
+        <p><strong>Issue:</strong> Showed "Current Location" instead of place names</p>
+        <p><strong>Fix:</strong> Now shows "Exploring: [Place Name]" when results are available</p>
+        <p class="fix-status">Status: Fixed to show actual search locations</p>
+    </div>
+    
+    <div class="test">
+        <h3>✅ Fix 4: Image Loading</h3>
+        <p><strong>Issue:</strong> Images not displaying properly</p>
+        <p><strong>Fix:</strong> Improved unoptimized prop handling, better error fallback</p>
+        <p class="fix-status">Status: Fixed with better error handling</p>
+    </div>
+    
+    <div class="test">
+        <h3>🧪 Test Real Data Quality</h3>
+        <button onclick="testDataQuality()">Test Data Quality</button>
+        <div id="quality-result"></div>
+    </div>
+
+    <script>
+        async function testEXAFix() {
+            const result = document.getElementById('exa-result');
+            try {
+                result.innerHTML = '<div>🔄 Testing EXA search fix...</div>';
+                const response = await fetch('http://localhost:8002/explore', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: 'temples in warangal' })
+                });
+                const data = await response.json();
+                
+                if (data.success && data.result.items.length > 0) {
+                    const item = data.result.items[0];
+                    const hasRealURL = item.url && !item.url.includes('example.com');
+                    
+                    result.innerHTML = `
+                        <div class="success">
+                            <strong>✅ EXA Search Fixed!</strong><br>
+                            <strong>Found:</strong> ${data.result.items.length} results<br>
+                            <strong>First result:</strong> ${item.title}<br>
+                            <strong>Location:</strong> ${item.location}<br>
+                            <strong>Real URL:</strong> ${hasRealURL ? '✅ ' + item.url : '❌ No real URL'}<br>
+                            <strong>Tags:</strong> ${item.tags.join(', ')}
+                        </div>
+                    `;
+                } else {
+                    result.innerHTML = `<div class="error"><strong>❌ Test Failed:</strong> No results returned</div>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="error"><strong>❌ Error:</strong> ${error.message}</div>`;
+            }
+        }
+
+        async function testDataQuality() {
+            const result = document.getElementById('quality-result');
+            try {
+                result.innerHTML = '<div>🔄 Testing data quality across different queries...</div>';
+                
+                const testQueries = [
+                    'temples in warangal',
+                    'museums in delhi', 
+                    'forts in rajasthan'
+                ];
+                
+                const results = [];
+                
+                for (const query of testQueries) {
+                    const response = await fetch('http://localhost:8002/explore', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query })
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success && data.result.items.length > 0) {
+                        const item = data.result.items[0];
+                        results.push({
+                            query,
+                            title: item.title,
+                            location: item.location,
+                            hasURL: !!(item.url && !item.url.includes('example.com')),
+                            url: item.url
+                        });
+                    }
+                }
+                
+                let html = '<div class="success"><strong>✅ Data Quality Test Results:</strong><br><br>';
+                results.forEach(r => {
+                    html += `
+                        <strong>Query:</strong> ${r.query}<br>
+                        <strong>Result:</strong> ${r.title}<br>
+                        <strong>Location:</strong> ${r.location}<br>
+                        <strong>Real URL:</strong> ${r.hasURL ? '✅ ' + r.url : '❌ No URL'}<br><br>
+                    `;
+                });
+                html += '</div>';
+                
+                result.innerHTML = html;
+                
+            } catch (error) {
+                result.innerHTML = `<div class="error"><strong>❌ Error:</strong> ${error.message}</div>`;
+            }
+        }
+        
+        // Auto-run EXA test on load
+        window.onload = () => testEXAFix();
+    </script>
+</body>
+</html>

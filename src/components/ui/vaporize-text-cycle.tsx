@@ -183,7 +183,7 @@ export default function VaporizeTextCycle({
       lastTime = currentTime;
 
       const canvas = canvasRef.current;
-      const ctx = canvas?.getContext("2d");
+      const ctx = canvas?.getContext("2d", { willReadFrequently: true });
 
       if (!canvas || !ctx || !particlesRef.current.length) {
         frameId = requestAnimationFrame(animate);
@@ -441,7 +441,7 @@ const handleFontChange = ({
 const cleanup = ({ canvasRef, particlesRef }: { canvasRef: React.RefObject<HTMLCanvasElement>; particlesRef: React.MutableRefObject<Particle[]> }) => {
   // Clear canvas
   const canvas = canvasRef.current;
-  const ctx = canvas?.getContext("2d");
+  const ctx = canvas?.getContext("2d", { willReadFrequently: true });
   
   if (canvas && ctx) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -476,7 +476,7 @@ const renderCanvas = ({
   const canvas = canvasRef.current;
   if (!canvas || !wrapperSize.width || !wrapperSize.height) return;
 
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return;
 
   const { width, height } = wrapperSize;

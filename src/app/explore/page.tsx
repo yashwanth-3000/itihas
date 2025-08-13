@@ -5,8 +5,8 @@ import { PromptInputBox } from "@/components/ui/ai-prompt-box";
 import { AnimatedTestimonials } from "@/components/ui";
 import VaporizeTextCycle, { Tag as VaporizeTag } from "@/components/ui/vaporize-text-cycle";
 import { Home, MessageCircle, User, Compass, BookOpen, ArrowLeft, Sparkles, Telescope, Map, Lightbulb } from "lucide-react";
-import Link from "next/link";
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 // Apple system font stack for a clean, native feel
 const APPLE_SYSTEM_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, system-ui, sans-serif";
@@ -33,6 +33,7 @@ export default function ExplorePage() {
     { name: 'Home', url: '/', icon: Home },
     { name: 'Chat', url: '/chat', icon: MessageCircle },
     { name: 'Explore', url: '/explore', icon: Compass },
+    { name: 'Communities', url: '/explore/communities', icon: User },
     { name: 'About', url: '/sharable-link', icon: User }
   ];
 
@@ -51,8 +52,8 @@ export default function ExplorePage() {
 
   // Show line, start vapor after initialDelay, hide after vapor completes
   useEffect(() => {
-    // Keep intro visible long enough for both lines to vaporize sequentially
-    const total = HEADLINE_ANIM.initialDelayMs + (HEADLINE_ANIM.vaporizeDurationMs * 2) + 400;
+    // Keep intro visible long enough for the single bottom line to vaporize
+    const total = HEADLINE_ANIM.initialDelayMs + HEADLINE_ANIM.vaporizeDurationMs + 200;
     const timer = setTimeout(() => setShowIntro(false), total);
     return () => clearTimeout(timer);
   }, []);
@@ -94,57 +95,47 @@ export default function ExplorePage() {
         {/* Input Phase */}
         {currentPhase === 'input' && (
           <div className="flex flex-col items-center min-h-screen px-4 pt-[15vh] md:pt-[17vh] lg:pt-[17vh]">
-            {/* Vaporize headline at ~1/3 of page, then hide after ~2.6s */}
+
+            {/* Prompt box visible from the start (no entrance animation) */}
+            <div className="w-full max-w-2xl">
+              <PromptInputBox 
+                onSend={handleSendMessage}
+                placeholder="What would you like to explore? (e.g., 'Locate all the temples around me')"
+                isLoading={isLoading}
+                onThinkModeChange={handleThinkModeChange}
+                isThinkMode={isThinkMode}
+                className="bg-white/95 backdrop-blur-md border-2 border-orange-400/60 shadow-2xl ring-2 ring-yellow-400/30"
+                // Explore: Search always on, hide Think/Logs, show Location button, auto-detect location
+                searchAlwaysOn
+                hideThinkAndLogs
+                showLocationButton
+                autoDetectLocation
+              />
+            </div>
+
+
+
+            {/* Single vanishing line - below prompt box */}
             {showIntro && (
-              <div className="w-full max-w-[1100px] mb-8 space-y-0 text-center">
-                <div className="w-full h-[72px] sm:h-[88px] md:h-[108px] lg:h-[124px]">
-                  <VaporizeTextCycle
-                    texts={["Uncover your lost stories, preserve your heritage"]}
-                    font={{ fontFamily: APPLE_SYSTEM_FONT, fontSize: `${headlineFontSize}px`, fontWeight: 800 }}
-                    color="rgba(255,255,255,0.98)"
-                    spread={3}
-                    density={4}
-                    animation={{ vaporizeDuration: HEADLINE_ANIM.vaporizeDurationMs/1000, fadeInDuration: HEADLINE_ANIM.fadeInDurationMs/1000, waitDuration: HEADLINE_ANIM.waitDurationMs/1000, initialDelayMs: HEADLINE_ANIM.initialDelayMs }}
-                    // Force precise center alignment in canvas
-                    direction="left-to-right"
-                    alignment="center"
-                    tag={VaporizeTag.H1}
-                  />
-                </div>
+              <div className="w-full max-w-[1100px] mt-6 text-center">
                 <div className="w-full h-[64px] sm:h-[84px] md:h-[104px] lg:h-[120px]">
                   <VaporizeTextCycle
-                    texts={["and culture before it fades away."]}
+                    texts={["Save your culture before it fades away."]}
                     font={{ fontFamily: APPLE_SYSTEM_FONT, fontSize: `${headlineFontSize}px`, fontWeight: 800 }}
                     color="rgba(255,255,255,0.95)"
                     spread={3}
                     density={4}
-                    // Start after the first line completes vaporizing
                     animation={{
                       vaporizeDuration: HEADLINE_ANIM.vaporizeDurationMs/1000,
                       fadeInDuration: HEADLINE_ANIM.fadeInDurationMs/1000,
                       waitDuration: HEADLINE_ANIM.waitDurationMs/1000,
-                      initialDelayMs: HEADLINE_ANIM.initialDelayMs + HEADLINE_ANIM.vaporizeDurationMs + 120,
+                      initialDelayMs: HEADLINE_ANIM.initialDelayMs,
                     }}
-                    // Force precise center alignment in canvas
                     direction="left-to-right"
                     alignment="center"
                     tag={VaporizeTag.H1}
                   />
                 </div>
-              </div>
-            )}
-
-            {/* Prompt box appears after intro with soft fade/slide */}
-            {!showIntro && (
-              <div className="w-full max-w-2xl animate-[promptIn_600ms_ease-out_both]">
-                <PromptInputBox 
-                  onSend={handleSendMessage}
-                  placeholder="What would you like to explore? (e.g., 'How does quantum computing work?')"
-                  isLoading={isLoading}
-                  onThinkModeChange={handleThinkModeChange}
-                  isThinkMode={isThinkMode}
-                  className="bg-white/95 backdrop-blur-md border-2 border-orange-400/60 shadow-2xl ring-2 ring-yellow-400/30"
-                />
               </div>
             )}
 

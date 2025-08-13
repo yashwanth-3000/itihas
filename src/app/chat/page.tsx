@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { PromptInputBox } from "@/components/ui/ai-prompt-box";
 import { NavBar } from "@/components/ui/tubelight-navbar";
 import { ModelSelector } from "@/components/ui/model-selector";
@@ -22,6 +22,14 @@ interface Message {
 }
 
 export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="h-screen flex items-center justify-center text-sm text-gray-500">Loading chat…</div>}>
+      <ChatContent />
+    </Suspense>
+  );
+}
+
+function ChatContent() {
   const searchParams = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,6 +58,7 @@ export default function ChatPage() {
     { name: 'Home', url: '/', icon: Home },
     { name: 'Chat', url: '/chat', icon: MessageCircle },
     { name: 'Explore', url: '/explore', icon: Compass },
+    { name: 'Communities', url: '/explore/communities', icon: User },
     { name: 'About', url: '/sharable-link', icon: User }
   ];
 

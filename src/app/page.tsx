@@ -9,6 +9,7 @@ export default function HomePage() {
     { name: 'Home', url: '/', icon: Home },
     { name: 'Chat', url: '/chat', icon: MessageCircle },
     { name: 'Explore', url: '/explore', icon: Compass },
+    { name: 'Communities', url: '/explore/communities', icon: User },
     { name: 'About', url: '/sharable-link', icon: User }
   ];
 

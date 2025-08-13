@@ -14,7 +14,7 @@ interface NavItem {
 }
 
 interface NavBarProps {
-  items: NavItem[]
+  items: readonly NavItem[]
   className?: string
   isDarkMode?: boolean
   comicTheme?: boolean
