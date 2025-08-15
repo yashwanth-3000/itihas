@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface CommunityPlace {
   id: string;
@@ -18,11 +24,13 @@ interface CommunityPlace {
   downvotes: number;
   userVote?: 'up' | 'down' | null;
   userSaved?: boolean;
+  mapsUrl?: string;
+  streetViewUrl?: string;
+  hasStreetView?: boolean;
   author: {
     name: string;
     avatar: string;
     verified?: boolean;
-    totalContributions?: number;
   };
   dateAdded: string;
   category: 'cultural' | 'natural' | 'historical' | 'spiritual';
@@ -32,7 +40,6 @@ interface CommunityPlace {
 
 interface Comment {
   id: string;
-  placeId: string;
   author: {
     name: string;
     avatar: string;
@@ -46,169 +53,113 @@ interface Comment {
   replies?: Comment[];
 }
 
-// In-memory storage (in production, use a proper database)
-let communityPlaces: CommunityPlace[] = [
-  {
-    id: "1",
-    name: "Hidden Temple of Serenity",
-    significance: "A 400-year-old temple hidden in dense forest, known only to local tribes for its unique healing rituals. This sacred place has been a center of spiritual practice for generations, offering a unique glimpse into ancient traditions that have been preserved through oral history.",
-    facts: [
-      "Built without any metal nails or screws using traditional joinery techniques",
-      "Natural spring water flows through the temple creating a gentle, meditative sound",
-      "Only accessible during low tide when the hidden path is revealed",
-      "The main hall features intricate wood carvings depicting local folklore",
-      "Home to a rare species of luminescent moss that glows softly at night"
-    ],
-    location: {
-      lat: 40.7128,
-      lng: -74.0060,
-      address: "Hidden Valley, Northern Mountain Range, Sacred Forest Reserve"
-    },
-    images: [
-      "https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800",
-      "https://images.unsplash.com/photo-1548013146-72479768bada?w=800",
-      "https://images.unsplash.com/photo-1545558014-8692077e9b5c?w=800",
-      "https://images.unsplash.com/photo-1478144592103-25e218a04891?w=800"
-    ],
-    rating: 9.2,
-    saves: 234,
-    views: 1205,
-    upvotes: 187,
-    downvotes: 12,
-    userVote: null,
-    userSaved: false,
-    author: {
-      name: "Maya Patel",
-      avatar: "",
-      verified: true,
-      totalContributions: 23
-    },
-    dateAdded: "2024-01-15T00:00:00.000Z",
-    category: "spiritual",
-    status: "featured",
-    verificationLevel: "expert"
-  },
-  {
-    id: "2",
-    name: "Whispering Caves",
-    significance: "Natural caves with unique acoustic properties where ancient storytellers gathered for centuries. The caves feature remarkable natural formations and serve as a window into the oral traditions of the indigenous peoples.",
-    facts: [
-      "Echo lasts exactly 7 seconds in the main chamber",
-      "Temperature remains constant year-round at 55°F",
-      "Home to rare glowing minerals that illuminate naturally",
-      "Contains ancient petroglyphs dating back 2000 years",
-      "Acoustic properties were used for ceremonial chanting"
-    ],
-    location: {
-      lat: 40.7580,
-      lng: -73.9855,
-      address: "Northern Cliffs, Coastal Region, Heritage Conservation Area"
-    },
-    images: [
-      "https://images.unsplash.com/photo-1551524164-6cf64ac2c4b6?w=800",
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800",
-      "https://images.unsplash.com/photo-1540979388789-6cee28a1cdc9?w=800"
-    ],
-    rating: 8.7,
-    saves: 156,
-    views: 892,
-    upvotes: 142,
-    downvotes: 8,
-    userVote: null,
-    userSaved: false,
-    author: {
-      name: "Chen Wei",
-      avatar: "",
-      verified: false,
-      totalContributions: 7
-    },
-    dateAdded: "2024-01-20T00:00:00.000Z",
-    category: "natural",
-    status: "published",
-    verificationLevel: "community"
-  }
-];
-
-let comments: Comment[] = [
-  {
-    id: "1",
-    placeId: "1",
-    author: {
-      name: "Sarah Johnson",
-      avatar: "",
-      verified: true
-    },
-    content: "I visited this place last month and it was absolutely breathtaking! The spiritual energy here is unlike anything I've experienced. The locals were so welcoming and shared some incredible stories about the temple's history.",
-    datePosted: "2024-01-10T00:00:00.000Z",
-    upvotes: 12,
-    downvotes: 1,
-    userVote: null,
-    replies: [
-      {
-        id: "1-1",
-        placeId: "1",
-        author: {
-          name: "Maya Patel",
-          avatar: ""
-        },
-        content: "Thank you for sharing! I'm so glad you had a meaningful experience there. The local community has been the guardians of this place for generations.",
-        datePosted: "2024-01-11T00:00:00.000Z",
-        upvotes: 8,
-        downvotes: 0,
-        userVote: null
-      }
-    ]
-  },
-  {
-    id: "2",
-    placeId: "1",
-    author: {
-      name: "David Chen",
-      avatar: ""
-    },
-    content: "How accessible is this location? I'm planning a visit with elderly family members and want to make sure they can safely navigate the terrain.",
-    datePosted: "2024-01-08T00:00:00.000Z",
-    upvotes: 5,
-    downvotes: 0,
-    userVote: null
-  },
-  {
-    id: "3",
-    placeId: "1",
-    author: {
-      name: "Elena Rodriguez",
-      avatar: ""
-    },
-    content: "The architecture here is fascinating! I'm an architectural historian and I'd love to study this place further. The construction techniques mentioned are quite rare for this region.",
-    datePosted: "2024-01-05T00:00:00.000Z",
-    upvotes: 9,
-    downvotes: 0,
-    userVote: null
-  }
-];
-
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const placeId = params.id;
-    const place = communityPlaces.find(p => p.id === placeId);
-    
-    if (!place) {
+
+    // Fetch place from database
+    const { data: place, error: placeError } = await supabase
+      .from('places')
+      .select(`
+        id,
+        name,
+        description,
+        address,
+        images,
+        category,
+        tags,
+        rating,
+        upvote_count,
+        downvote_count,
+        comment_count,
+        view_count,
+        featured,
+        verified,
+        created_at,
+        communities!inner(name, category)
+      `)
+      .eq('id', placeId)
+      .single();
+
+    if (placeError || !place) {
+      console.error('Error fetching place:', placeError);
       return NextResponse.json(
         { success: false, error: 'Place not found' },
         { status: 404 }
       );
     }
 
-    const placeComments = comments.filter(c => c.placeId === placeId);
+    // Increment view count
+    await supabase.rpc('increment_place_views', { place_uuid: placeId });
+
+    // Transform place data to match frontend interface
+    const transformedPlace: CommunityPlace = {
+      id: place.id,
+      name: place.name,
+      significance: place.description || '',
+      facts: place.tags || [],
+      location: {
+        address: place.address || 'Unknown location'
+      },
+      images: place.images || ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'],
+      rating: parseFloat(place.rating || '0'),
+      saves: 0, // Not implemented yet
+      views: place.view_count || 0,
+      upvotes: place.upvote_count || 0,
+      downvotes: place.downvote_count || 0,
+      userVote: null, // TODO: Implement user-specific votes
+      userSaved: false, // TODO: Implement user preferences
+      mapsUrl: place.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.address)}` : undefined,
+      hasStreetView: false, // TODO: Implement street view detection
+      author: {
+        name: 'Community Member', // TODO: Get actual user data
+        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
+        verified: place.verified || false
+      },
+      dateAdded: place.created_at,
+      category: place.category as 'cultural' | 'natural' | 'historical' | 'spiritual',
+      status: place.featured ? 'featured' : 'published',
+      verificationLevel: place.verified ? 'community' : 'unverified'
+    };
+
+    // Fetch comments for this place
+    const { data: commentsData, error: commentsError } = await supabase
+      .from('comments')
+      .select(`
+        id,
+        content,
+        upvote_count,
+        downvote_count,
+        created_at,
+        users!inner(full_name, avatar_url)
+      `)
+      .eq('place_id', placeId)
+      .order('created_at', { ascending: false });
+
+    // Transform comments data
+    const comments: Comment[] = (commentsData || []).map((comment: any) => ({
+      id: comment.id,
+      author: {
+        name: comment.users.full_name || 'Anonymous',
+        avatar: comment.users.avatar_url || 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
+        verified: false
+      },
+      content: comment.content,
+      datePosted: comment.created_at,
+      upvotes: comment.upvote_count || 0,
+      downvotes: comment.downvote_count || 0,
+      userVote: null,
+      replies: [] // TODO: Implement nested comments
+    }));
 
     return NextResponse.json({
       success: true,
       data: {
-        place,
-        comments: placeComments
+        place: transformedPlace,
+        comments: comments
       }
     });
   } catch (error) {
@@ -220,6 +171,7 @@ export async function GET(
   }
 }
 
+// Handle comment posting
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -227,47 +179,111 @@ export async function POST(
   try {
     const placeId = params.id;
     const body = await request.json();
-    const { content } = body;
 
-    if (!content || !content.trim()) {
+    if (!body.content || !body.content.trim()) {
       return NextResponse.json(
         { success: false, error: 'Comment content is required' },
         { status: 400 }
       );
     }
 
-    const place = communityPlaces.find(p => p.id === placeId);
-    if (!place) {
+    // For now, create comments without user authentication
+    // TODO: Implement proper user authentication
+    const { data: newComment, error: commentError } = await supabase
+      .from('comments')
+      .insert({
+        place_id: placeId,
+        content: body.content.trim(),
+        user_id: '00000000-0000-0000-0000-000000000000' // Placeholder user ID
+      })
+      .select(`
+        id,
+        content,
+        upvote_count,
+        downvote_count,
+        created_at
+      `)
+      .single();
+
+    if (commentError || !newComment) {
+      console.error('Error creating comment:', commentError);
       return NextResponse.json(
-        { success: false, error: 'Place not found' },
-        { status: 404 }
+        { success: false, error: 'Failed to create comment' },
+        { status: 500 }
       );
     }
 
-    const newComment: Comment = {
-      id: Date.now().toString(),
-      placeId,
+    // Transform comment data
+    const transformedComment: Comment = {
+      id: newComment.id,
       author: {
-        name: "You",
-        avatar: ""
+        name: 'Anonymous User', // TODO: Get actual user data
+        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
+        verified: false
       },
-      content: content.trim(),
-      datePosted: new Date().toISOString(),
-      upvotes: 0,
-      downvotes: 0,
-      userVote: null
+      content: newComment.content,
+      datePosted: newComment.created_at,
+      upvotes: newComment.upvote_count || 0,
+      downvotes: newComment.downvote_count || 0,
+      userVote: null,
+      replies: []
     };
-
-    comments.unshift(newComment);
 
     return NextResponse.json({
       success: true,
-      data: newComment
+      data: transformedComment
     });
   } catch (error) {
     console.error('Error posting comment:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to post comment' },
+      { status: 500 }
+    );
+  }
+}
+
+// Handle comment voting
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const body = await request.json();
+    const { commentId, voteType } = body;
+
+    if (!commentId || !voteType || (voteType !== 'up' && voteType !== 'down')) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid comment vote request' },
+        { status: 400 }
+      );
+    }
+
+    // Use RPC function to increment comment votes
+    const rpcFunction = voteType === 'up' ? 'increment_comment_upvotes' : 'increment_comment_downvotes';
+    const { data, error } = await supabase
+      .rpc(rpcFunction, { comment_uuid: commentId });
+
+    if (error) {
+      console.error('Error updating comment vote:', error);
+      return NextResponse.json(
+        { success: false, error: 'Failed to update comment vote' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: data.id,
+        upvotes: data.upvote_count,
+        downvotes: data.downvote_count,
+        userVote: voteType
+      }
+    });
+  } catch (error) {
+    console.error('Error handling comment vote:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to handle comment vote' },
       { status: 500 }
     );
   }

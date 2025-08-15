@@ -2,7 +2,7 @@
 
 import { NavBar } from "@/components/ui/tubelight-navbar";
 
-import { Home, MessageCircle, User, Compass, Star, MapPin, Eye, Calendar, ArrowUp, ArrowDown, TrendingUp, ArrowLeft, Send } from "lucide-react";
+import { Home, MessageCircle, User, Compass, Star, MapPin, Eye, Calendar, ArrowUp, ArrowDown, TrendingUp, ArrowLeft, Send, Map, Navigation, BookOpen, Megaphone, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -60,12 +60,16 @@ interface CommunityPlace {
   upvotes: number;
   downvotes: number;
   userVote?: 'up' | 'down' | null;
+  // Optional maps and street view data
+  mapsUrl?: string;
+  streetViewUrl?: string;
+  hasStreetView?: boolean;
 
   author: {
     name: string;
     avatar: string;
     verified?: boolean;
-    totalContributions?: number;
+
   };
   dateAdded: Date;
   category: 'cultural' | 'natural' | 'historical' | 'spiritual';
@@ -236,9 +240,46 @@ export default function PlaceDetailPage() {
         };
       });
 
+      // Update on server
+      const response = await fetch('/api/communities', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: place.id,
+          action: 'vote',
+          voteType: voteType
+        }),
+      });
 
+      const result = await response.json();
+      
+      if (!result.success) {
+        // Revert optimistic update on error
+        setPlace(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            upvotes: place.upvotes,
+            downvotes: place.downvotes,
+            userVote: previousVote
+          };
+        });
+        console.error('Failed to update vote:', result.error);
+      }
     } catch (error) {
       console.error('Error updating vote:', error);
+      // Revert optimistic update on error
+      setPlace(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          upvotes: place.upvotes,
+          downvotes: place.downvotes,
+          userVote: place.userVote
+        };
+      });
     }
   };
 
@@ -284,33 +325,73 @@ export default function PlaceDetailPage() {
     }
   };
 
-  const handleCommentVote = (commentId: string, voteType: 'up' | 'down') => {
-    setComments(prev => prev.map(comment => {
-      if (comment.id !== commentId) return comment;
+  const handleCommentVote = async (commentId: string, voteType: 'up' | 'down') => {
+    if (!place) return;
+    
+    try {
+      // Update local state optimistically
+      const previousComment = comments.find(c => c.id === commentId);
       
-      let newUpvotes = comment.upvotes;
-      let newDownvotes = comment.downvotes;
-      let newUserVote = voteType;
+      setComments(prev => prev.map(comment => {
+        if (comment.id !== commentId) return comment;
+        
+        let newUpvotes = comment.upvotes;
+        let newDownvotes = comment.downvotes;
+        let newUserVote = voteType;
 
-      // Handle previous vote removal
-      if (comment.userVote === 'up') newUpvotes--;
-      if (comment.userVote === 'down') newDownvotes--;
+        // Handle previous vote removal
+        if (comment.userVote === 'up') newUpvotes--;
+        if (comment.userVote === 'down') newDownvotes--;
+        
+        // Handle new vote (or toggle off if same vote)
+        if (comment.userVote === voteType) {
+          newUserVote = null;
+        } else {
+          if (voteType === 'up') newUpvotes++;
+          if (voteType === 'down') newDownvotes++;
+        }
+
+        return {
+          ...comment,
+          upvotes: newUpvotes,
+          downvotes: newDownvotes,
+          userVote: newUserVote
+        };
+      }));
+
+      // Update on server
+      const response = await fetch(`/api/communities/${place.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          commentId: commentId,
+          voteType: voteType
+        }),
+      });
+
+      const result = await response.json();
       
-      // Handle new vote (or toggle off if same vote)
-      if (comment.userVote === voteType) {
-        newUserVote = null;
-      } else {
-        if (voteType === 'up') newUpvotes++;
-        if (voteType === 'down') newDownvotes++;
+      if (!result.success) {
+        // Revert optimistic update on error
+        if (previousComment) {
+          setComments(prev => prev.map(comment => 
+            comment.id === commentId ? previousComment : comment
+          ));
+        }
+        console.error('Failed to update comment vote:', result.error);
       }
-
-      return {
-        ...comment,
-        upvotes: newUpvotes,
-        downvotes: newDownvotes,
-        userVote: newUserVote
-      };
-    }));
+    } catch (error) {
+      console.error('Error updating comment vote:', error);
+      // Revert optimistic update on error
+      const previousComment = comments.find(c => c.id === commentId);
+      if (previousComment) {
+        setComments(prev => prev.map(comment => 
+          comment.id === commentId ? previousComment : comment
+        ));
+      }
+    }
   };
 
   if (loading) {
@@ -561,13 +642,13 @@ export default function PlaceDetailPage() {
             </div>
 
             {/* Right Column - Sidebar */}
-            <div className="space-y-6">
+            <div className="sticky top-24 space-y-6 lg:h-fit">
               {/* Voting and Actions */}
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 sticky top-24"
+                className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6"
               >
                 {/* Voting Section */}
                 <div className="text-center mb-6">
@@ -628,6 +709,81 @@ export default function PlaceDetailPage() {
                 </div>
               </motion.div>
 
+              {/* Action Buttons */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.15 }}
+                className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 space-y-4"
+              >
+                {/* Maps and Street View Buttons */}
+                <div className="space-y-3">
+                  {/* See on Maps Button */}
+                  {(place.location.lat && place.location.lng) || place.mapsUrl ? (
+                    <button
+                      onClick={() => {
+                        const url = place.mapsUrl || 
+                          `https://www.google.com/maps/search/?api=1&query=${place.location.lat},${place.location.lng}`;
+                        window.open(url, '_blank');
+                      }}
+                      className="w-full bg-white/15 hover:bg-white/25 border border-white/30 hover:border-white/50 text-white px-4 py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 backdrop-blur-md"
+                    >
+                      <Map size={18} />
+                      See on Maps
+                    </button>
+                  ) : null}
+
+                  {/* Street View Button */}
+                  {place.hasStreetView && (place.location.lat && place.location.lng) && (
+                    <button
+                      onClick={() => {
+                        const url = place.streetViewUrl || 
+                          `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${place.location.lat},${place.location.lng}`;
+                        window.open(url, '_blank');
+                      }}
+                      className="w-full bg-white/15 hover:bg-white/25 border border-white/30 hover:border-white/50 text-white px-4 py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 backdrop-blur-md"
+                    >
+                      <Navigation size={18} />
+                      Street View
+                    </button>
+                  )}
+                </div>
+
+                {/* Learn More Button */}
+                <button
+                  onClick={() => {
+                    // You can customize this to open a modal, navigate to a detailed page, or show more info
+                    const searchQuery = encodeURIComponent(`${place.name} ${place.location.address} history significance`);
+                    window.open(`https://www.google.com/search?q=${searchQuery}`, '_blank');
+                  }}
+                  className="w-full bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 text-white px-4 py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 backdrop-blur-md"
+                >
+                  <BookOpen size={18} />
+                  Learn More
+                </button>
+
+                {/* Raise Your Voice Button */}
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      // Create a pre-filled social media message
+                      const message = encodeURIComponent(
+                        `Help save ${place.name}! This ${place.category} site in ${place.location.address} needs our attention. ${place.significance} #SaveOurHeritage #CulturalPreservation #${place.category.charAt(0).toUpperCase() + place.category.slice(1)}Heritage`
+                      );
+                      // Open Twitter/X with pre-filled message
+                      window.open(`https://twitter.com/intent/tweet?text=${message}`, '_blank');
+                    }}
+                    className="w-full bg-gradient-to-r from-orange-500/20 to-red-500/20 hover:bg-red-500/40 hover:from-red-500/40 hover:to-red-600/40 border border-orange-400/30 hover:border-red-500/60 text-white px-4 py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 backdrop-blur-md"
+                  >
+                    <Megaphone size={18} />
+                    Raise Your Voice
+                  </button>
+                  <p className="text-white/60 text-xs text-center leading-relaxed">
+                    Start a social media campaign to save this place
+                  </p>
+                </div>
+              </motion.div>
+
               {/* Author Info */}
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
@@ -640,11 +796,7 @@ export default function PlaceDetailPage() {
                   {getAvatarComponent(place.author.name, 48)}
                   <div>
                     <div className="text-white font-medium">{place.author.name}</div>
-                    {place.author.totalContributions && (
-                      <div className="text-white/60 text-sm">
-                        {place.author.totalContributions} contributions
-                      </div>
-                    )}
+
                   </div>
                 </div>
               </motion.div>

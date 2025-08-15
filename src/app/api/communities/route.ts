@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface CommunityPlace {
   id: string;
@@ -18,11 +24,14 @@ interface CommunityPlace {
   downvotes: number;
   userVote?: 'up' | 'down' | null;
   userSaved?: boolean;
+  // Optional maps and street view data
+  mapsUrl?: string;
+  streetViewUrl?: string;
+  hasStreetView?: boolean;
   author: {
     name: string;
     avatar: string;
     verified?: boolean;
-    totalContributions?: number;
   };
   dateAdded: string;
   category: 'cultural' | 'natural' | 'historical' | 'spiritual';
@@ -30,96 +39,89 @@ interface CommunityPlace {
   verificationLevel: 'unverified' | 'community' | 'expert' | 'official';
 }
 
-// In-memory storage (in production, use a proper database)
-let communityPlaces: CommunityPlace[] = [
-  {
-    id: "1",
-    name: "Hidden Temple of Serenity",
-    significance: "A 400-year-old temple hidden in dense forest, known only to local tribes for its unique healing rituals.",
-    facts: [
-      "Built without any metal nails or screws",
-      "Natural spring water flows through the temple",
-      "Only accessible during low tide"
-    ],
-    location: {
-      lat: 40.7128,
-      lng: -74.0060,
-      address: "Hidden Valley, Mountain Range"
-    },
-    images: [
-      "https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800",
-      "https://images.unsplash.com/photo-1548013146-72479768bada?w=800"
-    ],
-    rating: 9.2,
-    saves: 234,
-    views: 1205,
-    upvotes: 187,
-    downvotes: 12,
-    userVote: null,
-    userSaved: false,
-    author: {
-      name: "Maya Patel",
-      avatar: "https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150",
-      verified: true,
-      totalContributions: 23
-    },
-    dateAdded: "2024-01-15T00:00:00.000Z",
-    category: "spiritual",
-    status: "featured",
-    verificationLevel: "expert"
-  },
-  {
-    id: "2",
-    name: "Whispering Caves",
-    significance: "Natural caves with unique acoustic properties where ancient storytellers gathered for centuries.",
-    facts: [
-      "Echo lasts exactly 7 seconds",
-      "Temperature remains constant year-round",
-      "Home to rare glowing minerals"
-    ],
-    location: {
-      lat: 40.7580,
-      lng: -73.9855,
-      address: "Northern Cliffs, Coastal Region"
-    },
-    images: [
-      "https://images.unsplash.com/photo-1551524164-6cf64ac2c4b6?w=800"
-    ],
-    rating: 8.7,
-    saves: 156,
-    views: 892,
-    upvotes: 142,
-    downvotes: 8,
-    userVote: null,
-    userSaved: false,
-    author: {
-      name: "Chen Wei",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
-      verified: false,
-      totalContributions: 7
-    },
-    dateAdded: "2024-01-20T00:00:00.000Z",
-    category: "natural",
-    status: "published",
-    verificationLevel: "community"
-  }
-];
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
     const sortBy = searchParams.get('sortBy') || 'newest';
 
-    let filteredPlaces = communityPlaces;
+    // Build the query
+    let query = supabase
+      .from('places')
+      .select(`
+        id,
+        name,
+        description,
+        address,
+        images,
+        category,
+        tags,
+        rating,
+        upvote_count,
+        downvote_count,
+        comment_count,
+        view_count,
+        featured,
+        verified,
+        created_at,
+        communities!inner(name, category)
+      `);
 
-    // Filter by category
+    // Filter by category if specified
     if (category && category !== 'all') {
-      filteredPlaces = filteredPlaces.filter(place => place.category === category);
+      query = query.eq('category', category);
     }
 
+    // Execute query
+    const { data: places, error } = await query;
+
+    if (error) {
+      console.error('Supabase error:', error);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch places from database' },
+        { status: 500 }
+      );
+    }
+
+    if (!places) {
+      return NextResponse.json({
+        success: true,
+        data: []
+      });
+    }
+
+    // Transform database data to match frontend interface
+    const transformedPlaces: CommunityPlace[] = places.map((place: any) => ({
+      id: place.id,
+      name: place.name,
+      significance: place.description || '',
+      facts: place.tags || [],
+      location: {
+        address: place.address || 'Unknown location'
+      },
+      images: place.images || ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'],
+      rating: parseFloat(place.rating || '0'),
+      saves: 0, // Not implemented yet
+      views: place.view_count || 0,
+      upvotes: place.upvote_count || 0,
+      downvotes: place.downvote_count || 0,
+      userVote: null, // TODO: Implement user-specific votes
+      userSaved: false, // TODO: Implement user preferences
+      mapsUrl: place.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.address)}` : undefined,
+      hasStreetView: false, // TODO: Implement street view detection
+      author: {
+        name: 'Community Member', // TODO: Get actual user data
+        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
+        verified: place.verified || false
+      },
+      dateAdded: place.created_at,
+      category: place.category as 'cultural' | 'natural' | 'historical' | 'spiritual',
+      status: place.featured ? 'featured' : 'published',
+      verificationLevel: place.verified ? 'community' : 'unverified'
+    }));
+
     // Sort places
-    filteredPlaces.sort((a, b) => {
+    transformedPlaces.sort((a, b) => {
       switch (sortBy) {
         case 'rating':
           return b.rating - a.rating;
@@ -128,25 +130,20 @@ export async function GET(request: NextRequest) {
         case 'upvotes':
           return (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes);
         case 'trending':
-          // Sort by engagement score (upvotes + saves + views, weighted by recency)
-          const aScore = (a.upvotes + a.saves + (a.views / 10)) * (Date.now() - new Date(a.dateAdded).getTime() > 7 * 24 * 60 * 60 * 1000 ? 0.5 : 1);
-          const bScore = (b.upvotes + b.saves + (b.views / 10)) * (Date.now() - new Date(b.dateAdded).getTime() > 7 * 24 * 60 * 60 * 1000 ? 0.5 : 1);
+          // Sort by engagement score (upvotes + views, weighted by recency)
+          const aScore = (a.upvotes + (a.views / 10)) * (Date.now() - new Date(a.dateAdded).getTime() > 7 * 24 * 60 * 60 * 1000 ? 0.5 : 1);
+          const bScore = (b.upvotes + (b.views / 10)) * (Date.now() - new Date(b.dateAdded).getTime() > 7 * 24 * 60 * 60 * 1000 ? 0.5 : 1);
           return bScore - aScore;
-        case 'controversial':
-          // Sort by controversy score (high total votes but close upvote/downvote ratio)
-          const aControversy = (a.upvotes + a.downvotes) * (1 - Math.abs(a.upvotes - a.downvotes) / (a.upvotes + a.downvotes));
-          const bControversy = (b.upvotes + b.downvotes) * (1 - Math.abs(b.upvotes - b.downvotes) / (b.upvotes + b.downvotes));
-          return bControversy - aControversy;
         case 'newest':
           return new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime();
         default:
-          return 0;
+          return new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime();
       }
     });
 
     return NextResponse.json({
       success: true,
-      data: filteredPlaces
+      data: transformedPlaces
     });
   } catch (error) {
     console.error('Error fetching community places:', error);
@@ -160,38 +157,140 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
-    const newPlace: CommunityPlace = {
-      id: Date.now().toString(),
-      name: body.name,
-      significance: body.significance,
-      facts: body.facts?.filter((fact: string) => fact?.trim()) || [],
-      location: body.location,
-      images: body.images || [],
-      rating: body.rating || 5,
-      saves: 0,
-      views: 0,
-      author: {
-        name: body.author?.name || "Anonymous",
-        avatar: body.author?.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"
-      },
-      dateAdded: new Date().toISOString(),
-      category: body.category || "cultural"
-    };
 
     // Validate required fields
-    if (!newPlace.name || !newPlace.significance || !newPlace.location.address) {
+    if (!body.name || !body.significance || !body.location?.address) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
+        { success: false, error: 'Missing required fields: name, significance, and location.address are required' },
         { status: 400 }
       );
     }
 
-    communityPlaces.unshift(newPlace);
+    // First, we need to get or create a community for this place
+    // For now, let's get the first available community or create a default one
+    let { data: communities, error: communityError } = await supabase
+      .from('communities')
+      .select('id')
+      .limit(1);
+
+    if (communityError) {
+      console.error('Error fetching communities:', communityError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch communities' },
+        { status: 500 }
+      );
+    }
+
+    let communityId: string;
+
+    if (!communities || communities.length === 0) {
+      // Create a default community
+      const { data: newCommunity, error: createError } = await supabase
+        .from('communities')
+        .insert({
+          name: 'Community Places',
+          description: 'A collection of community-shared places',
+          category: body.category || 'cultural'
+        })
+        .select('id')
+        .single();
+
+      if (createError || !newCommunity) {
+        console.error('Error creating default community:', createError);
+        return NextResponse.json(
+          { success: false, error: 'Failed to create community' },
+          { status: 500 }
+        );
+      }
+      
+      communityId = newCommunity.id;
+    } else {
+      communityId = communities[0].id;
+    }
+
+    // Prepare place data for database
+    const placeData = {
+      community_id: communityId,
+      name: body.name,
+      description: body.significance,
+      address: body.location.address,
+      images: body.images || ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'],
+      category: body.category || 'cultural',
+      tags: body.facts?.filter((fact: string) => fact?.trim()) || [],
+      rating: parseFloat(body.rating || '5'),
+      upvote_count: 0,
+      downvote_count: 0,
+      comment_count: 0,
+      view_count: 0,
+      verified: false,
+      featured: false
+    };
+
+    // Insert the new place
+    const { data: newPlace, error: insertError } = await supabase
+      .from('places')
+      .insert(placeData)
+      .select(`
+        id,
+        name,
+        description,
+        address,
+        images,
+        category,
+        tags,
+        rating,
+        upvote_count,
+        downvote_count,
+        comment_count,
+        view_count,
+        featured,
+        verified,
+        created_at
+      `)
+      .single();
+
+    if (insertError || !newPlace) {
+      console.error('Error inserting place:', insertError);
+      console.error('Place data attempted:', placeData);
+      return NextResponse.json(
+        { success: false, error: `Failed to create place in database: ${insertError?.message || 'Unknown error'}` },
+        { status: 500 }
+      );
+    }
+
+    // Transform the database response to match frontend interface
+    const transformedPlace: CommunityPlace = {
+      id: newPlace.id,
+      name: newPlace.name,
+      significance: newPlace.description || '',
+      facts: newPlace.tags || [],
+      location: {
+        address: newPlace.address || 'Unknown location'
+      },
+      images: newPlace.images || ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'],
+      rating: parseFloat(newPlace.rating || '0'),
+      saves: 0,
+      views: newPlace.view_count || 0,
+      upvotes: newPlace.upvote_count || 0,
+      downvotes: newPlace.downvote_count || 0,
+      userVote: null,
+      userSaved: false,
+      mapsUrl: newPlace.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(newPlace.address)}` : undefined,
+      hasStreetView: false,
+      author: {
+        name: body.author?.name || 'Community Member',
+        avatar: body.author?.avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
+        verified: newPlace.verified || false
+      },
+      dateAdded: newPlace.created_at,
+      category: newPlace.category as 'cultural' | 'natural' | 'historical' | 'spiritual',
+      status: newPlace.featured ? 'featured' : 'published',
+      verificationLevel: newPlace.verified ? 'community' : 'unverified'
+    };
 
     return NextResponse.json({
       success: true,
-      data: newPlace
+      data: transformedPlace
     });
   } catch (error) {
     console.error('Error creating community place:', error);
@@ -207,61 +306,205 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const { id, action, value, voteType } = body;
 
-    const placeIndex = communityPlaces.findIndex(place => place.id === id);
-    if (placeIndex === -1) {
+    if (!id) {
       return NextResponse.json(
-        { success: false, error: 'Place not found' },
-        { status: 404 }
+        { success: false, error: 'Place ID is required' },
+        { status: 400 }
       );
     }
 
     // Handle different actions
     switch (action) {
       case 'increment_views':
-        communityPlaces[placeIndex].views += 1;
-        break;
-      case 'toggle_save':
-        if (communityPlaces[placeIndex].userSaved) {
-          communityPlaces[placeIndex].saves -= 1;
-          communityPlaces[placeIndex].userSaved = false;
-        } else {
-          communityPlaces[placeIndex].saves += 1;
-          communityPlaces[placeIndex].userSaved = true;
+        {
+          // Use RPC function to increment views
+          const { data, error } = await supabase
+            .rpc('increment_place_views', { place_uuid: id });
+
+          if (error) {
+            console.error('Error incrementing views:', error);
+            return NextResponse.json(
+              { success: false, error: 'Failed to update views' },
+              { status: 500 }
+            );
+          }
+
+          // Transform and return updated place
+          const transformedPlace: CommunityPlace = {
+            id: data.id,
+            name: data.name,
+            significance: data.description || '',
+            facts: data.tags || [],
+            location: {
+              address: data.address || 'Unknown location'
+            },
+            images: data.images || ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'],
+            rating: parseFloat(data.rating || '0'),
+            saves: 0,
+            views: data.view_count || 0,
+            upvotes: data.upvote_count || 0,
+            downvotes: data.downvote_count || 0,
+            userVote: null,
+            userSaved: false,
+            mapsUrl: data.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.address)}` : undefined,
+            hasStreetView: false,
+            author: {
+              name: 'Community Member',
+              avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
+              verified: data.verified || false
+            },
+            dateAdded: data.created_at,
+            category: data.category as 'cultural' | 'natural' | 'historical' | 'spiritual',
+            status: data.featured ? 'featured' : 'published',
+            verificationLevel: data.verified ? 'community' : 'unverified'
+          };
+
+          return NextResponse.json({
+            success: true,
+            data: transformedPlace
+          });
         }
-        break;
+
       case 'vote':
-        const place = communityPlaces[placeIndex];
-        const previousVote = place.userVote;
-        
-        // Remove previous vote
-        if (previousVote === 'up') place.upvotes -= 1;
-        if (previousVote === 'down') place.downvotes -= 1;
-        
-        // Add new vote or remove if same vote
-        if (previousVote === voteType) {
-          place.userVote = null; // Remove vote
-        } else {
-          place.userVote = voteType;
-          if (voteType === 'up') place.upvotes += 1;
-          if (voteType === 'down') place.downvotes += 1;
+        {
+          if (!voteType || (voteType !== 'up' && voteType !== 'down')) {
+            return NextResponse.json(
+              { success: false, error: 'Invalid vote type' },
+              { status: 400 }
+            );
+          }
+
+          // Use RPC function to increment votes
+          const rpcFunction = voteType === 'up' ? 'increment_place_upvotes' : 'increment_place_downvotes';
+          const { data, error } = await supabase
+            .rpc(rpcFunction, { place_uuid: id });
+
+          if (error) {
+            console.error('Error updating vote:', error);
+            return NextResponse.json(
+              { success: false, error: 'Failed to update vote' },
+              { status: 500 }
+            );
+          }
+
+          // Transform and return updated place
+          const transformedPlace: CommunityPlace = {
+            id: data.id,
+            name: data.name,
+            significance: data.description || '',
+            facts: data.tags || [],
+            location: {
+              address: data.address || 'Unknown location'
+            },
+            images: data.images || ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'],
+            rating: parseFloat(data.rating || '0'),
+            saves: 0,
+            views: data.view_count || 0,
+            upvotes: data.upvote_count || 0,
+            downvotes: data.downvote_count || 0,
+            userVote: voteType, // Set the user vote for this session
+            userSaved: false,
+            mapsUrl: data.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.address)}` : undefined,
+            hasStreetView: false,
+            author: {
+              name: 'Community Member',
+              avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
+              verified: data.verified || false
+            },
+            dateAdded: data.created_at,
+            category: data.category as 'cultural' | 'natural' | 'historical' | 'spiritual',
+            status: data.featured ? 'featured' : 'published',
+            verificationLevel: data.verified ? 'community' : 'unverified'
+          };
+
+          return NextResponse.json({
+            success: true,
+            data: transformedPlace
+          });
         }
-        break;
+
       case 'update_rating':
-        if (typeof value === 'number' && value >= 1 && value <= 10) {
-          communityPlaces[placeIndex].rating = value;
+        {
+          if (typeof value !== 'number' || value < 1 || value > 10) {
+            return NextResponse.json(
+              { success: false, error: 'Rating must be a number between 1 and 10' },
+              { status: 400 }
+            );
+          }
+
+          const { data, error } = await supabase
+            .from('places')
+            .update({ rating: value })
+            .eq('id', id)
+            .select(`
+              id,
+              name,
+              description,
+              address,
+              images,
+              category,
+              tags,
+              rating,
+              upvote_count,
+              downvote_count,
+              comment_count,
+              view_count,
+              featured,
+              verified,
+              created_at
+            `)
+            .single();
+
+          if (error) {
+            console.error('Error updating rating:', error);
+            return NextResponse.json(
+              { success: false, error: 'Failed to update rating' },
+              { status: 500 }
+            );
+          }
+
+          // Transform and return updated place
+          const transformedPlace: CommunityPlace = {
+            id: data.id,
+            name: data.name,
+            significance: data.description || '',
+            facts: data.tags || [],
+            location: {
+              address: data.address || 'Unknown location'
+            },
+            images: data.images || ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'],
+            rating: parseFloat(data.rating || '0'),
+            saves: 0,
+            views: data.view_count || 0,
+            upvotes: data.upvote_count || 0,
+            downvotes: data.downvote_count || 0,
+            userVote: null,
+            userSaved: false,
+            mapsUrl: data.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.address)}` : undefined,
+            hasStreetView: false,
+            author: {
+              name: 'Community Member',
+              avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
+              verified: data.verified || false
+            },
+            dateAdded: data.created_at,
+            category: data.category as 'cultural' | 'natural' | 'historical' | 'spiritual',
+            status: data.featured ? 'featured' : 'published',
+            verificationLevel: data.verified ? 'community' : 'unverified'
+          };
+
+          return NextResponse.json({
+            success: true,
+            data: transformedPlace
+          });
         }
-        break;
+
       default:
         return NextResponse.json(
           { success: false, error: 'Invalid action' },
           { status: 400 }
         );
     }
-
-    return NextResponse.json({
-      success: true,
-      data: communityPlaces[placeIndex]
-    });
   } catch (error) {
     console.error('Error updating community place:', error);
     return NextResponse.json(

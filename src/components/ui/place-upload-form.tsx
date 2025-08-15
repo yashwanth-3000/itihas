@@ -16,6 +16,10 @@ interface PlaceFormData {
   category: 'cultural' | 'natural' | 'historical' | 'spiritual';
   images: File[];
   rating: number;
+  // Optional maps and street view data
+  mapsUrl?: string;
+  streetViewUrl?: string;
+  hasStreetView?: boolean;
 }
 
 interface PlaceUploadFormProps {
@@ -32,7 +36,10 @@ export function PlaceUploadForm({ isOpen, onClose, onSubmit }: PlaceUploadFormPr
     location: { address: '' },
     category: 'cultural',
     images: [],
-    rating: 8
+    rating: 8,
+    mapsUrl: '',
+    streetViewUrl: '',
+    hasStreetView: false
   });
 
   const [dragActive, setDragActive] = useState(false);
@@ -136,7 +143,10 @@ export function PlaceUploadForm({ isOpen, onClose, onSubmit }: PlaceUploadFormPr
         location: { address: '' },
         category: 'cultural',
         images: [],
-        rating: 8
+        rating: 8,
+        mapsUrl: '',
+        streetViewUrl: '',
+        hasStreetView: false
       });
       setCurrentStep(1);
     }
@@ -418,6 +428,54 @@ export function PlaceUploadForm({ isOpen, onClose, onSubmit }: PlaceUploadFormPr
                     </div>
                   </div>
                 )}
+
+                {/* Optional Maps and Street View Section */}
+                <div className="space-y-4">
+                  <div className="border-t border-white/20 pt-4">
+                    <h3 className="text-white font-medium mb-3">Optional: Maps & Street View (Recommended)</h3>
+                    
+                    {/* Maps URL */}
+                    <div className="space-y-2">
+                      <label className="block text-white/80 text-sm">Custom Maps URL</label>
+                      <input
+                        type="url"
+                        value={formData.mapsUrl || ''}
+                        onChange={(e) => handleInputChange('mapsUrl', e.target.value)}
+                        placeholder="https://maps.google.com/... (Optional)"
+                        className="w-full bg-white/10 border border-white/30 rounded-xl px-4 py-3 text-white placeholder-white/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-white/50"
+                      />
+                      <p className="text-white/50 text-xs">Leave blank to auto-generate from coordinates</p>
+                    </div>
+
+                    {/* Street View Toggle */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.hasStreetView || false}
+                          onChange={(e) => handleInputChange('hasStreetView', e.target.checked)}
+                          className="w-4 h-4 rounded border-white/30 bg-white/10 text-white focus:ring-white/50"
+                        />
+                        <span className="text-white/80 text-sm">Street View is available for this location</span>
+                      </label>
+                    </div>
+
+                    {/* Street View URL (only if checkbox is checked) */}
+                    {formData.hasStreetView && (
+                      <div className="space-y-2">
+                        <label className="block text-white/80 text-sm">Custom Street View URL</label>
+                        <input
+                          type="url"
+                          value={formData.streetViewUrl || ''}
+                          onChange={(e) => handleInputChange('streetViewUrl', e.target.value)}
+                          placeholder="https://www.google.com/maps/@?api=1&map_action=pano... (Optional)"
+                          className="w-full bg-white/10 border border-white/30 rounded-xl px-4 py-3 text-white placeholder-white/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-white/50"
+                        />
+                        <p className="text-white/50 text-xs">Leave blank to auto-generate from coordinates</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
                   <p className="text-yellow-200 text-sm">
