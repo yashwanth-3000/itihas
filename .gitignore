@@ -75,6 +75,7 @@ myenv/
 backend/myenv/
 backend/venv/
 backend/env/
+newenv/
 
 # Database files
 *.db
