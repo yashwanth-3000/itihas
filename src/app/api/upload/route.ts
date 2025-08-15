@@ -62,8 +62,11 @@ export async function POST(request: NextRequest) {
         });
 
       if (error) {
-        console.error('Error uploading file:', error);
-        continue; // Skip this file and continue with others
+        console.error('Error uploading file:', fileName, error);
+        return NextResponse.json(
+          { success: false, error: `Upload failed: ${error.message}` },
+          { status: 500 }
+        );
       }
 
       // Get public URL
@@ -91,7 +94,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error in image upload:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to upload images' },
+      { success: false, error: `Failed to upload images: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }
     );
   }
