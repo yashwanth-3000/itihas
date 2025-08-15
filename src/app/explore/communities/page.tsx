@@ -7,6 +7,7 @@ import { Home, MessageCircle, User, Compass, Plus, Star, MapPin, Filter, X, Arro
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Apple system font stack for a clean, native feel
 const APPLE_SYSTEM_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, system-ui, sans-serif";
@@ -56,12 +57,16 @@ interface CommunityPlace {
   };
   images: string[];
   rating: number;
-
+  saves: number;
   views: number;
   upvotes: number;
   downvotes: number;
   userVote?: 'up' | 'down' | null;
-
+  userSaved?: boolean;
+  // Optional maps and street view data
+  mapsUrl?: string;
+  streetViewUrl?: string;
+  hasStreetView?: boolean;
   author: {
     name: string;
     avatar: string;
@@ -95,12 +100,15 @@ const mockPlaces: CommunityPlace[] = [
       "https://images.unsplash.com/photo-1548013146-72479768bada?w=800"
     ],
     rating: 9.2,
-
+    saves: 234,
     views: 1205,
     upvotes: 187,
     downvotes: 12,
     userVote: null,
-
+    userSaved: false,
+    mapsUrl: "https://www.google.com/maps/search/?api=1&query=40.7128,-74.0060",
+    hasStreetView: true,
+    streetViewUrl: "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=40.7128,-74.0060",
     author: {
       name: "Maya Patel",
       avatar: "",
@@ -130,12 +138,14 @@ const mockPlaces: CommunityPlace[] = [
       "https://images.unsplash.com/photo-1551524164-6cf64ac2c4b6?w=800"
     ],
     rating: 8.7,
-
+    saves: 156,
     views: 892,
     upvotes: 142,
     downvotes: 8,
     userVote: null,
-
+    userSaved: false,
+    mapsUrl: "https://www.google.com/maps/search/?api=1&query=40.7580,-73.9855",
+    hasStreetView: false,
     author: {
       name: "Chen Wei",
       avatar: "",
@@ -151,6 +161,7 @@ const mockPlaces: CommunityPlace[] = [
 
 export default function CommunitiesPage() {
   const router = useRouter();
+  const { user, session } = useAuth();
   const [places, setPlaces] = useState<CommunityPlace[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -159,7 +170,6 @@ export default function CommunitiesPage() {
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [locationQuery, setLocationQuery] = useState('');
-
 
   const filterDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -172,17 +182,18 @@ export default function CommunitiesPage() {
   ];
 
   const categories = [
-    { id: 'all', name: 'All Places' },
-    { id: 'cultural', name: 'Cultural' },
-    { id: 'natural', name: 'Natural' },
-    { id: 'historical', name: 'Historical' },
-    { id: 'spiritual', name: 'Spiritual' }
+    { id: 'all', name: 'All Places', icon: '🌍' },
+    { id: 'cultural', name: 'Cultural', icon: '🏛️' },
+    { id: 'natural', name: 'Natural', icon: '🌿' },
+    { id: 'historical', name: 'Historical', icon: '📜' },
+    { id: 'spiritual', name: 'Spiritual', icon: '🕉️' }
   ];
 
-  // Fetch places from API
+  // Fetch places from API - ONLY SUPABASE DATA
   const fetchPlaces = async () => {
     try {
       setLoading(true);
+      
       const response = await fetch(`/api/communities?category=${filterCategory}`);
       const result = await response.json();
       
@@ -195,13 +206,11 @@ export default function CommunitiesPage() {
         setPlaces(placesWithDates);
       } else {
         console.error('Failed to fetch places:', result.error);
-        // Fallback to mock data
-        setPlaces(mockPlaces);
+        setPlaces([]); // Show empty state if API fails
       }
     } catch (error) {
       console.error('Error fetching places:', error);
-      // Fallback to mock data
-      setPlaces(mockPlaces);
+      setPlaces([]); // Show empty state if API fails
     } finally {
       setLoading(false);
     }
@@ -222,11 +231,35 @@ export default function CommunitiesPage() {
 
   const handlePlaceSubmit = async (formData: any) => {
     try {
-      // Convert images to base64 or upload to a file service
-      // For demo purposes, we'll use placeholder images
-      const imageUrls = formData.images.map((file: File, index: number) => 
-        `https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800&sig=${Date.now()}-${index}`
-      );
+          // Anyone can add places now
+
+      let imageUrls: string[] = [];
+      
+      // Upload images to Supabase Storage if any
+      if (formData.images && formData.images.length > 0) {
+        const uploadFormData = new FormData();
+        formData.images.forEach((file: File) => {
+          uploadFormData.append('files', file);
+        });
+
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadFormData,
+        });
+
+        const uploadResult = await uploadResponse.json();
+        
+        if (uploadResult.success) {
+          imageUrls = uploadResult.data.urls;
+        } else {
+          console.error('Failed to upload images:', uploadResult.error);
+          // Use fallback image if upload fails
+          imageUrls = ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'];
+        }
+      } else {
+        // Use fallback image if no images provided
+        imageUrls = ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'];
+      }
 
       const placeData = {
         name: formData.name,
@@ -235,11 +268,7 @@ export default function CommunitiesPage() {
         location: formData.location,
         images: imageUrls,
         rating: formData.rating,
-        category: formData.category,
-        author: {
-          name: "You",
-          avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"
-        }
+        category: formData.category
       };
 
       const response = await fetch('/api/communities', {
@@ -261,10 +290,23 @@ export default function CommunitiesPage() {
         const newPlace: CommunityPlace = {
           ...placeData,
           id: Date.now().toString(),
-  
+          saves: 0,
           views: 0,
+          upvotes: 0,
+          downvotes: 0,
+          userVote: null,
+          userSaved: false,
+          mapsUrl: placeData.location.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeData.location.address)}` : undefined,
+          hasStreetView: false,
+          author: {
+            name: user?.email?.split('@')[0] || 'You',
+            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+            verified: false
+          },
           dateAdded: new Date(),
           images: formData.images.map((file: File) => URL.createObjectURL(file)),
+          status: 'published',
+          verificationLevel: 'unverified'
         };
         setPlaces(prev => [newPlace, ...prev]);
       }
@@ -299,6 +341,8 @@ export default function CommunitiesPage() {
 
 
   const handleVote = async (placeId: string, voteType: 'up' | 'down') => {
+    // Anyone can vote now
+
     try {
       const place = places.find(p => p.id === placeId);
       const previousVote = place?.userVote;
@@ -309,7 +353,7 @@ export default function CommunitiesPage() {
         
         let newUpvotes = p.upvotes;
         let newDownvotes = p.downvotes;
-        let newUserVote = voteType;
+        let newUserVote: 'up' | 'down' | null = voteType;
 
         // Handle previous vote removal
         if (p.userVote === 'up') newUpvotes--;
@@ -334,7 +378,7 @@ export default function CommunitiesPage() {
 
 
       // Update on server
-      await fetch('/api/communities', {
+      const response = await fetch('/api/communities', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -345,6 +389,16 @@ export default function CommunitiesPage() {
           voteType: voteType
         }),
       });
+
+      const result = await response.json();
+      if (!result.success) {
+        // Revert optimistic update on error
+        setPlaces(prev => prev.map(p => {
+          if (p.id !== placeId) return p;
+          return { ...p, userVote: previousVote };
+        }));
+        console.error('Failed to update vote:', result.error);
+      }
     } catch (error) {
       console.error('Error updating vote:', error);
       // You could add a revert mechanism here
@@ -365,7 +419,7 @@ export default function CommunitiesPage() {
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-none"></div>
       
       <div className="relative z-10">
-        <NavBar items={navItems} />
+        <NavBar items={navItems} showAuth={true} exploreTheme={true} />
         
         <div className="px-4 pt-24 pb-8">
           {/* Header Section */}

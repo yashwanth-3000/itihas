@@ -4,8 +4,10 @@ import React, { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LucideIcon } from "lucide-react"
+import { LucideIcon, User, LogIn, LogOut } from "lucide-react"
 import { cn } from "../../lib/utils"
+import { useAuth } from "@/contexts/AuthContext"
+import { supabase } from "@/lib/supabase"
 
 interface NavItem {
   name: string
@@ -20,11 +22,45 @@ interface NavBarProps {
   comicTheme?: boolean
   exploreTheme?: boolean
   isMinimized?: boolean
+  showAuth?: boolean // New prop to show auth button
 }
 
-export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme, isMinimized }: NavBarProps) {
+export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme, isMinimized, showAuth }: NavBarProps) {
   const pathname = usePathname()
   const [isMobile, setIsMobile] = useState(false)
+  const { user, profile, loading, signInWithGoogle, signOut } = useAuth()
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [localProfile, setLocalProfile] = useState<any>(null)
+
+  // Force load profile data for testing
+  useEffect(() => {
+    const loadProfileData = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', '1ee6046f-f3fd-4687-aced-ecb258ba2975')
+          .single()
+
+        if (!error && data) {
+          setLocalProfile(data)
+          console.log('Navbar: Profile loaded directly:', {
+            name: data.full_name,
+            avatar: data.avatar_url
+          })
+        }
+      } catch (error) {
+        console.error('Navbar: Failed to load profile:', error)
+      }
+    }
+
+    loadProfileData()
+  }, [])
+
+  // Debug profile data
+  useEffect(() => {
+    console.log('Profile data in navbar:', {profile, localProfile})
+  }, [profile, localProfile])
 
   useEffect(() => {
     const handleResize = () => {
@@ -36,6 +72,21 @@ export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme,
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
   }, [])
+
+  // Close profile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showProfileMenu) {
+        const target = event.target as Element
+        if (!target.closest('.profile-menu-container')) {
+          setShowProfileMenu(false)
+        }
+      }
+    }
+
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [showProfileMenu])
 
   return (
     <motion.div
@@ -54,17 +105,17 @@ export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme,
         className,
       )}
     >
-      <div className={`flex items-center gap-3 backdrop-blur-lg py-1 px-1 rounded-full shadow-lg pointer-events-auto ${
-        comicTheme
-          ? 'bg-yellow-400/90 border border-orange-400/60'
-          : exploreTheme
-            ? 'bg-orange-400/90 border border-yellow-400/60'
-            : isDarkMode !== undefined 
-              ? (isDarkMode 
-                  ? 'bg-gray-800/90 border border-gray-700' 
-                  : 'bg-white/90 border border-gray-200')
-              : 'bg-white/90 border border-white/40'
-      }`}>
+                   <div className={`flex items-center gap-3 backdrop-blur-lg py-1 px-1 rounded-full shadow-lg pointer-events-auto ${
+               comicTheme
+                 ? 'bg-yellow-400/90 border border-orange-400/60'
+                 : exploreTheme
+                   ? 'bg-orange-50/80 border border-orange-200/40'
+                   : isDarkMode !== undefined 
+                     ? (isDarkMode 
+                         ? 'bg-gray-800/90 border border-gray-700' 
+                         : 'bg-white/90 border border-gray-200')
+                     : 'bg-white/90 border border-white/40'
+             }`}>
         {items.map((item) => {
           const Icon = item.icon
           const isActive = pathname === item.url
@@ -75,15 +126,15 @@ export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme,
               href={item.url}
               className={cn(
                 "relative cursor-pointer text-xs font-semibold px-4 py-2 rounded-full transition-colors",
-                comicTheme
-                  ? "text-black hover:text-gray-800"
-                  : exploreTheme
-                    ? "text-white hover:text-gray-100"
-                    : isDarkMode !== undefined 
-                      ? (isDarkMode 
-                          ? "text-gray-300 hover:text-white" 
-                          : "text-gray-700 hover:text-gray-900")
-                      : "text-gray-700 hover:text-gray-900",
+                                 comicTheme
+                   ? "text-black hover:text-gray-800"
+                   : exploreTheme
+                     ? "text-gray-700 hover:text-gray-900"
+                     : isDarkMode !== undefined 
+                       ? (isDarkMode 
+                           ? "text-gray-300 hover:text-white" 
+                           : "text-gray-700 hover:text-gray-900")
+                       : "text-gray-700 hover:text-gray-900",
                 isActive && (comicTheme
                   ? "bg-orange-500 text-white shadow-lg border border-orange-600"
                   : exploreTheme
@@ -170,6 +221,158 @@ export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme,
             </Link>
           )
         })}
+        
+        {/* Auth Button */}
+        {showAuth && (
+          <>
+            {/* Separator */}
+                               <div className={`w-px h-8 ${
+                     comicTheme
+                       ? 'bg-black/20'
+                       : exploreTheme
+                         ? 'bg-orange-300/40'
+                         : isDarkMode !== undefined 
+                           ? (isDarkMode ? 'bg-gray-600' : 'bg-gray-300')
+                           : 'bg-gray-300'
+                   }`} />
+            
+            {loading ? (
+              <div className="px-4 py-2">
+                <div className={`w-6 h-6 rounded-full border-2 border-t-transparent animate-spin ${
+                  comicTheme
+                    ? 'border-black/50'
+                    : exploreTheme
+                      ? 'border-white/50'
+                      : 'border-gray-500'
+                }`} />
+              </div>
+            ) : user ? (
+              <div className="relative profile-menu-container">
+                <button
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  className={cn(
+                    "relative cursor-pointer text-xs font-semibold px-4 py-2 rounded-full transition-colors flex items-center gap-2",
+                                               comicTheme
+                             ? "text-black hover:text-gray-800 hover:bg-orange-400/20"
+                             : exploreTheme
+                               ? "text-gray-700 hover:text-gray-900 hover:bg-orange-100/50"
+                               : isDarkMode !== undefined 
+                                 ? (isDarkMode 
+                                     ? "text-gray-300 hover:text-white hover:bg-gray-700" 
+                                     : "text-gray-700 hover:text-gray-900 hover:bg-gray-100")
+                                 : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                  )}
+                >
+                  {(profile?.avatar_url || localProfile?.avatar_url) ? (
+                    <img 
+                      src={profile?.avatar_url || localProfile?.avatar_url} 
+                      alt={(profile?.full_name || localProfile?.full_name) || 'User'} 
+                      className="w-6 h-6 rounded-full"
+                      onError={(e) => {
+                        console.error('Avatar failed to load:', profile?.avatar_url || localProfile?.avatar_url);
+                        e.currentTarget.style.display = 'none';
+                      }}
+                      onLoad={() => {
+                        console.log('Avatar loaded successfully:', profile?.avatar_url || localProfile?.avatar_url);
+                      }}
+                    />
+                  ) : (
+                    <User size={16} />
+                  )}
+                  {/* Debug info - moved to useEffect */}
+                  <span className="hidden md:inline">
+                    {profile?.full_name || localProfile?.full_name || user?.email?.split('@')[0] || 'Profile'}
+                  </span>
+                </button>
+                
+                {/* Profile Menu */}
+                {showProfileMenu && (
+                                           <div className={`absolute right-0 top-full mt-2 w-48 rounded-xl shadow-lg border backdrop-blur-lg z-50 ${
+                           comicTheme
+                             ? 'bg-yellow-50/95 border-orange-400/60'
+                             : exploreTheme
+                               ? 'bg-orange-50/95 border-orange-200/60'
+                               : isDarkMode !== undefined 
+                                 ? (isDarkMode 
+                                     ? 'bg-gray-800/95 border-gray-700' 
+                                     : 'bg-white/95 border-gray-200')
+                                 : 'bg-white/95 border-gray-200'
+                         }`}>
+                    <div className="p-3 border-b border-gray-200/50">
+                      <div className="flex items-center gap-3">
+                        {(profile?.avatar_url || localProfile?.avatar_url) ? (
+                          <img 
+                            src={profile?.avatar_url || localProfile?.avatar_url} 
+                            alt={(profile?.full_name || localProfile?.full_name) || 'User'} 
+                            className="w-10 h-10 rounded-full"
+                            onError={(e) => {
+                              console.error('Profile menu avatar failed to load:', profile?.avatar_url || localProfile?.avatar_url);
+                              e.currentTarget.style.display = 'none';
+                            }}
+                            onLoad={() => {
+                              console.log('Profile menu avatar loaded successfully:', profile?.avatar_url || localProfile?.avatar_url);
+                            }}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
+                            <User size={20} />
+                          </div>
+                        )}
+                        <div>
+                          <div className={`font-medium text-sm ${
+                            comicTheme ? 'text-black' : exploreTheme ? 'text-gray-800' : 'text-gray-900'
+                          }`}>
+                            {profile?.full_name || localProfile?.full_name || 'User'}
+                          </div>
+                          <div className={`text-xs ${
+                            comicTheme ? 'text-gray-600' : exploreTheme ? 'text-gray-600' : 'text-gray-500'
+                          }`}>
+                            {user?.email || localProfile?.email}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        signOut()
+                        setShowProfileMenu(false)
+                      }}
+                                                   className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
+                               comicTheme
+                                 ? 'text-black hover:bg-orange-100'
+                                 : exploreTheme
+                                   ? 'text-gray-800 hover:bg-orange-100/60'
+                                   : 'text-gray-700 hover:bg-gray-100'
+                             }`}
+                    >
+                      <LogOut size={16} />
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={signInWithGoogle}
+                className={cn(
+                  "relative cursor-pointer text-xs font-semibold px-4 py-2 rounded-full transition-colors flex items-center gap-2",
+                                           comicTheme
+                           ? "text-black hover:text-gray-800 bg-orange-500/20 hover:bg-orange-500/30"
+                           : exploreTheme
+                             ? "text-gray-700 hover:text-gray-900 bg-orange-100/60 hover:bg-orange-200/60"
+                             : isDarkMode !== undefined 
+                               ? (isDarkMode 
+                                   ? "text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600" 
+                                   : "text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200")
+                               : "text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200"
+                )}
+              >
+                <LogIn size={16} />
+                <span className="hidden md:inline">Sign In</span>
+              </button>
+            )}
+          </>
+        )}
       </div>
     </motion.div>
   )

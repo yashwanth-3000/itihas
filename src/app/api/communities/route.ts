@@ -44,27 +44,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
     const sortBy = searchParams.get('sortBy') || 'newest';
+    
+    // Get authenticated user to check their votes (fallback to demo user for testing)
+    const user = await getAuthenticatedUser(request);
+    const userId = user?.id || '1ee6046f-f3fd-4687-aced-ecb258ba2975'; // Yashwanth's user ID
 
-    // Build the query
+    // Build the query with user join for author information
     let query = supabase
       .from('places')
       .select(`
-        id,
-        name,
-        description,
-        address,
-        images,
-        category,
-        tags,
-        rating,
-        upvote_count,
-        downvote_count,
-        comment_count,
-        view_count,
-        featured,
-        verified,
-        created_at,
-        communities!inner(name, category)
+        *,
+        communities!inner(name, category),
+        users!places_created_by_fkey(full_name, avatar_url, username)
       `);
 
     // Filter by category if specified
@@ -78,16 +69,32 @@ export async function GET(request: NextRequest) {
     if (error) {
       console.error('Supabase error:', error);
       return NextResponse.json(
-        { success: false, error: 'Failed to fetch places from database' },
+        { success: false, error: `Database error: ${error.message}` },
         { status: 500 }
       );
     }
+
+    console.log('Query successful, places count:', places?.length || 0);
 
     if (!places) {
       return NextResponse.json({
         success: true,
         data: []
       });
+    }
+
+    // Get user votes 
+    let userVotes: { [placeId: string]: string } = {};
+    const { data: votes } = await supabase
+      .from('user_votes')
+      .select('place_id, vote_type')
+      .eq('user_id', userId);
+    
+    if (votes) {
+      userVotes = votes.reduce((acc, vote) => {
+        acc[vote.place_id] = vote.vote_type;
+        return acc;
+      }, {} as { [placeId: string]: string });
     }
 
     // Transform database data to match frontend interface
@@ -105,13 +112,13 @@ export async function GET(request: NextRequest) {
       views: place.view_count || 0,
       upvotes: place.upvote_count || 0,
       downvotes: place.downvote_count || 0,
-      userVote: null, // TODO: Implement user-specific votes
+      userVote: (userVotes[place.id] as 'up' | 'down') || null,
       userSaved: false, // TODO: Implement user preferences
       mapsUrl: place.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.address)}` : undefined,
       hasStreetView: false, // TODO: Implement street view detection
       author: {
-        name: 'Community Member', // TODO: Get actual user data
-        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
+        name: place.users?.full_name || 'Community Member',
+        avatar: place.users?.avatar_url || 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
         verified: place.verified || false
       },
       dateAdded: place.created_at,
@@ -154,6 +161,23 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Helper function to get authenticated user
+async function getAuthenticatedUser(request: NextRequest) {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return null;
+  }
+  
+  const token = authHeader.substring(7);
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  
+  if (error || !user) {
+    return null;
+  }
+  
+  return user;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -165,6 +189,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Get authenticated user (optional - fallback to demo user)
+    const user = await getAuthenticatedUser(request);
+    const userId = user?.id || '1ee6046f-f3fd-4687-aced-ecb258ba2975'; // Fallback to Yashwanth's ID
 
     // First, we need to get or create a community for this place
     // For now, let's get the first available community or create a default one
@@ -190,7 +218,8 @@ export async function POST(request: NextRequest) {
         .insert({
           name: 'Community Places',
           description: 'A collection of community-shared places',
-          category: body.category || 'cultural'
+          category: body.category || 'cultural',
+          created_by: userId
         })
         .select('id')
         .single();
@@ -223,7 +252,8 @@ export async function POST(request: NextRequest) {
       comment_count: 0,
       view_count: 0,
       verified: false,
-      featured: false
+      featured: false,
+      created_by: userId
     };
 
     // Insert the new place
@@ -374,10 +404,17 @@ export async function PATCH(request: NextRequest) {
             );
           }
 
-          // Use RPC function to increment votes
-          const rpcFunction = voteType === 'up' ? 'increment_place_upvotes' : 'increment_place_downvotes';
+          // Get authenticated user for voting (optional - fallback to demo user)
+          const user = await getAuthenticatedUser(request);
+          const userId = user?.id || '1ee6046f-f3fd-4687-aced-ecb258ba2975'; // Fallback to Yashwanth's ID
+
+          // Use smart voting RPC function
           const { data, error } = await supabase
-            .rpc(rpcFunction, { place_uuid: id });
+            .rpc('vote_on_place', { 
+              place_uuid: id, 
+              user_uuid: userId, 
+              vote_type: voteType 
+            });
 
           if (error) {
             console.error('Error updating vote:', error);
@@ -387,39 +424,15 @@ export async function PATCH(request: NextRequest) {
             );
           }
 
-          // Transform and return updated place
-          const transformedPlace: CommunityPlace = {
-            id: data.id,
-            name: data.name,
-            significance: data.description || '',
-            facts: data.tags || [],
-            location: {
-              address: data.address || 'Unknown location'
-            },
-            images: data.images || ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'],
-            rating: parseFloat(data.rating || '0'),
-            saves: 0,
-            views: data.view_count || 0,
-            upvotes: data.upvote_count || 0,
-            downvotes: data.downvote_count || 0,
-            userVote: voteType, // Set the user vote for this session
-            userSaved: false,
-            mapsUrl: data.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.address)}` : undefined,
-            hasStreetView: false,
-            author: {
-              name: 'Community Member',
-              avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
-              verified: data.verified || false
-            },
-            dateAdded: data.created_at,
-            category: data.category as 'cultural' | 'natural' | 'historical' | 'spiritual',
-            status: data.featured ? 'featured' : 'published',
-            verificationLevel: data.verified ? 'community' : 'unverified'
-          };
-
+          // Return simplified vote response
           return NextResponse.json({
             success: true,
-            data: transformedPlace
+            data: {
+              id: data.id,
+              upvotes: data.upvote_count,
+              downvotes: data.downvote_count,
+              userVote: data.user_vote
+            }
           });
         }
 

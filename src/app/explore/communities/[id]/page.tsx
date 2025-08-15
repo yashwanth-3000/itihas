@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, useParams } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Apple system font stack for a clean, native feel
 const APPLE_SYSTEM_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, system-ui, sans-serif";
@@ -95,6 +96,7 @@ interface Comment {
 export default function PlaceDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const { user, session } = useAuth();
   
   const [place, setPlace] = useState<CommunityPlace | null>(null);
   const [loading, setLoading] = useState(true);
@@ -289,6 +291,8 @@ export default function PlaceDetailPage() {
     e.preventDefault();
     if (!newComment.trim() || !place) return;
 
+    // Anyone can post comments now
+
     setIsSubmittingComment(true);
     
     try {
@@ -424,7 +428,7 @@ export default function PlaceDetailPage() {
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-none"></div>
       
       <div className="relative z-10">
-        <NavBar items={navItems} />
+        <NavBar items={navItems} showAuth={true} exploreTheme={true} />
         
         <div className="px-4 pt-24 pb-8">
           {/* Back Navigation */}

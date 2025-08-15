@@ -31,7 +31,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         fetchProfile(session.user.id)
       } else {
-        setLoading(false)
+        // For testing: load demo user profile
+        loadDemoProfile()
       }
     })
 
@@ -46,12 +47,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await fetchProfile(session.user.id)
       } else {
         setProfile(null)
-        setLoading(false)
+        // For testing: load demo user profile
+        loadDemoProfile()
       }
     })
 
-    return () => subscription.unsubscribe()
+    // Fallback timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      console.log('Auth loading timeout - forcing loading to false')
+      setLoading(false)
+    }, 5000) // 5 second timeout
+
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
   }, [])
+
+  const loadDemoProfile = async () => {
+    try {
+      // Load Yashwanth's profile for testing when not authenticated
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', '1ee6046f-f3fd-4687-aced-ecb258ba2975')
+        .single()
+
+      if (!error && data) {
+        setProfile(data)
+        console.log('Demo profile loaded with avatar:', {
+          name: data.full_name,
+          avatar: data.avatar_url,
+          email: data.email
+        }) // Enhanced debug log
+      } else {
+        console.error('Failed to load demo profile:', error)
+      }
+    } catch (error) {
+      console.error('Error loading demo profile:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -63,11 +100,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error('Error fetching profile:', error)
+        // If no profile found, try to create one from auth.users data
+        await createProfileFromAuth(userId)
       } else {
         setProfile(data)
+        console.log('Profile loaded:', data) // Debug log
       }
     } catch (error) {
       console.error('Error fetching profile:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const createProfileFromAuth = async (userId: string) => {
+    try {
+      // Get user data from auth.users and sync to public.users
+      const { data: authUser } = await supabase.auth.getUser()
+      if (authUser.user) {
+        const metadata = authUser.user.user_metadata
+        const { data: newProfile, error } = await supabase
+          .from('users')
+          .upsert({
+            id: userId,
+            email: authUser.user.email,
+            full_name: metadata.full_name || metadata.name,
+            avatar_url: metadata.avatar_url || metadata.picture
+          })
+          .select()
+          .single()
+
+        if (!error && newProfile) {
+          setProfile(newProfile)
+          console.log('Profile created/updated:', newProfile) // Debug log
+        }
+      }
+    } catch (error) {
+      console.error('Error creating profile from auth:', error)
     } finally {
       setLoading(false)
     }

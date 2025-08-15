@@ -60,26 +60,13 @@ export async function GET(
   try {
     const placeId = params.id;
 
-    // Fetch place from database
+    // Fetch place from database with user information
     const { data: place, error: placeError } = await supabase
       .from('places')
       .select(`
-        id,
-        name,
-        description,
-        address,
-        images,
-        category,
-        tags,
-        rating,
-        upvote_count,
-        downvote_count,
-        comment_count,
-        view_count,
-        featured,
-        verified,
-        created_at,
-        communities!inner(name, category)
+        *,
+        communities!inner(name, category),
+        users!places_created_by_fkey(full_name, avatar_url, username)
       `)
       .eq('id', placeId)
       .single();
@@ -115,8 +102,8 @@ export async function GET(
       mapsUrl: place.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.address)}` : undefined,
       hasStreetView: false, // TODO: Implement street view detection
       author: {
-        name: 'Community Member', // TODO: Get actual user data
-        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
+        name: place.users?.full_name || 'Community Member',
+        avatar: place.users?.avatar_url || 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
         verified: place.verified || false
       },
       dateAdded: place.created_at,
@@ -134,7 +121,7 @@ export async function GET(
         upvote_count,
         downvote_count,
         created_at,
-        users!inner(full_name, avatar_url)
+        users(full_name, avatar_url, username)
       `)
       .eq('place_id', placeId)
       .order('created_at', { ascending: false });
@@ -143,8 +130,8 @@ export async function GET(
     const comments: Comment[] = (commentsData || []).map((comment: any) => ({
       id: comment.id,
       author: {
-        name: comment.users.full_name || 'Anonymous',
-        avatar: comment.users.avatar_url || 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
+        name: comment.users?.full_name || 'Community Member',
+        avatar: comment.users?.avatar_url || 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
         verified: false
       },
       content: comment.content,
@@ -171,6 +158,23 @@ export async function GET(
   }
 }
 
+// Helper function to get authenticated user from request
+async function getAuthenticatedUser(request: NextRequest) {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return null;
+  }
+  
+  const token = authHeader.substring(7);
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  
+  if (error || !user) {
+    return null;
+  }
+  
+  return user;
+}
+
 // Handle comment posting
 export async function POST(
   request: NextRequest,
@@ -187,21 +191,24 @@ export async function POST(
       );
     }
 
-    // For now, create comments without user authentication
-    // TODO: Implement proper user authentication
+    // Get authenticated user (optional - fallback to demo user)
+    const user = await getAuthenticatedUser(request);
+    const userId = user?.id || '1ee6046f-f3fd-4687-aced-ecb258ba2975'; // Fallback to Yashwanth's ID
+
     const { data: newComment, error: commentError } = await supabase
       .from('comments')
       .insert({
         place_id: placeId,
         content: body.content.trim(),
-        user_id: '00000000-0000-0000-0000-000000000000' // Placeholder user ID
+        user_id: userId // Use real user ID
       })
       .select(`
         id,
         content,
         upvote_count,
         downvote_count,
-        created_at
+        created_at,
+        users(full_name, avatar_url, username)
       `)
       .single();
 
@@ -217,8 +224,8 @@ export async function POST(
     const transformedComment: Comment = {
       id: newComment.id,
       author: {
-        name: 'Anonymous User', // TODO: Get actual user data
-        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
+        name: newComment.users?.full_name || 'Community Member',
+        avatar: newComment.users?.avatar_url || 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
         verified: false
       },
       content: newComment.content,
@@ -257,6 +264,9 @@ export async function PATCH(
         { status: 400 }
       );
     }
+
+    // Get authenticated user (optional - comment voting open to all)
+    const user = await getAuthenticatedUser(request);
 
     // Use RPC function to increment comment votes
     const rpcFunction = voteType === 'up' ? 'increment_comment_upvotes' : 'increment_comment_downvotes';
