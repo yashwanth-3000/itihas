@@ -3,8 +3,8 @@
 import React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ArrowUp, Paperclip, Square, X, StopCircle, Mic, Globe, BrainCog, ScrollText, MapPin } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { ArrowUp, Paperclip, Square, X, Globe, BrainCog, ScrollText, MapPin } from "lucide-react";
+import { motion } from "framer-motion";
 import { cn } from "../../lib/utils";
 
 // Textarea Component
@@ -14,7 +14,13 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ className, ...props }, ref) => (
   <textarea
     className={cn(
-      "flex w-full rounded-md border-none bg-transparent px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] resize-none",
+      "flex w-full rounded-md border-none bg-transparent px-3 py-2.5 text-sm resize-none",
+      "text-gray-900 dark:text-gray-100",
+      "placeholder:text-gray-500 dark:placeholder:text-gray-400",
+      "focus-visible:outline-none focus-visible:ring-0",
+      "disabled:cursor-not-allowed disabled:opacity-50",
+      "min-h-[44px]",
+      "selection:bg-blue-200 dark:selection:bg-blue-800",
       className
     )}
     ref={ref}
@@ -301,7 +307,11 @@ const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
           <div
             ref={ref}
             className={cn(
-              "rounded-3xl border border-[#444444] bg-[#1F2023] p-2 shadow-[0_8px_30px_rgba(0,0,0,0.24)] transition-all duration-300",
+              "rounded-3xl border p-2 shadow-[0_8px_30px_rgba(0,0,0,0.24)] transition-all duration-300",
+              "border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800",
+              "hover:border-gray-400 dark:hover:border-gray-500",
+              "focus-within:border-blue-500 dark:focus-within:border-blue-400",
+              "focus-within:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] dark:focus-within:shadow-[0_0_0_3px_rgba(96,165,250,0.1)]",
               isLoading && "border-red-500/70",
               className
             )}
@@ -422,16 +432,17 @@ interface PromptInputBoxProps {
   // New options for specialized UIs (e.g., Explore page)
   searchAlwaysOn?: boolean; // keep Search mode always enabled (non-toggle)
   hideThinkAndLogs?: boolean; // hide Think and Logs controls entirely
+  hideThinkOnly?: boolean; // hide only Think button, keep Logs button
   showLocationButton?: boolean; // show Location control to attach coordinates
   autoDetectLocation?: boolean; // automatically detect location on component mount
 }
 export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxProps>((props, ref) => {
-  const { onSend = () => {}, isLoading = false, placeholder = "Type your message here...", className, onThinkModeChange, isThinkMode = false, onShowLogsToggle, showLogs = false, initialValue, searchAlwaysOn = false, hideThinkAndLogs = false, showLocationButton = false, autoDetectLocation = false } = props;
+  const { onSend = () => {}, isLoading = false, placeholder = "Type your message here...", className, onThinkModeChange, isThinkMode = false, onShowLogsToggle, showLogs = false, initialValue, searchAlwaysOn = false, hideThinkAndLogs = false, hideThinkOnly = false, showLocationButton = false, autoDetectLocation = false } = props;
   const [input, setInput] = React.useState(initialValue || "");
   const [files, setFiles] = React.useState<File[]>([]);
   const [filePreviews, setFilePreviews] = React.useState<{ [key: string]: string }>({});
   const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
-  const [isRecording, setIsRecording] = React.useState(false);
+
   const [showSearch, setShowSearch] = React.useState(searchAlwaysOn);
   const [showThink, setShowThink] = React.useState(isThinkMode);
   const uploadInputRef = React.useRef<HTMLInputElement>(null);
@@ -558,13 +569,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
     }
   };
 
-  const handleStartRecording = () => console.log("Started recording");
 
-  const handleStopRecording = (duration: number) => {
-    console.log(`Stopped recording after ${duration} seconds`);
-    setIsRecording(false);
-    onSend(`[Voice message - ${duration} seconds]`, []);
-  };
 
   const requestLocation = () => {
     if (typeof window === 'undefined' || !('geolocation' in navigator)) {
@@ -662,10 +667,16 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
           background: transparent;
         }
         textarea::-webkit-scrollbar-thumb {
-          background-color: rgb(75 85 99);
+          background-color: rgb(156 163 175);
           border-radius: 3px;
         }
         textarea::-webkit-scrollbar-thumb:hover {
+          background-color: rgb(107 114 128);
+        }
+        .dark textarea::-webkit-scrollbar-thumb {
+          background-color: rgb(75 85 99);
+        }
+        .dark textarea::-webkit-scrollbar-thumb:hover {
           background-color: rgb(107 114 128);
         }
       `}</style>
@@ -676,16 +687,15 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
         onSubmit={handleSubmit}
         className={cn(
           "w-full shadow-lg transition-all duration-300 ease-in-out rounded-2xl",
-          isRecording && "border-red-500/70",
           className
         )}
-        disabled={isLoading || isRecording}
+        disabled={isLoading}
         ref={ref || promptBoxRef}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {files.length > 0 && !isRecording && (
+        {files.length > 0 && (
           <div className="flex flex-wrap gap-2 p-0 pb-1 transition-all duration-300">
             {files.map((file, index) => (
               <div key={index} className="relative group">
@@ -715,12 +725,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
           </div>
         )}
 
-        <div
-          className={cn(
-            "transition-all duration-300",
-            isRecording ? "h-0 overflow-hidden opacity-0" : "opacity-100"
-          )}
-        >
+        <div className="transition-all duration-300 opacity-100">
           <PromptInputTextarea
             placeholder={
               searchAlwaysOn
@@ -735,26 +740,12 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
           />
         </div>
 
-        {isRecording && (
-          <VoiceRecorder
-            isRecording={isRecording}
-            onStartRecording={handleStartRecording}
-            onStopRecording={handleStopRecording}
-          />
-        )}
-
         <PromptInputActions className="flex items-center justify-between gap-2 p-0 pt-2">
-          <div
-            className={cn(
-              "flex items-center gap-1 transition-opacity duration-300",
-              isRecording ? "opacity-0 invisible h-0" : "opacity-100 visible"
-            )}
-          >
+          <div className="flex items-center gap-1 transition-opacity duration-300 opacity-100 visible">
             <PromptInputAction tooltip="Upload image">
               <button
                 onClick={() => uploadInputRef.current?.click()}
                 className="flex h-8 w-8 text-gray-500 dark:text-gray-400 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200"
-                disabled={isRecording}
               >
                 <Paperclip className="h-5 w-5 transition-colors" />
                 <input
@@ -807,7 +798,6 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                         ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white"
                         : "bg-transparent border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                     )}
-                    disabled={isRecording}
                   >
                     <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
                       <motion.div
@@ -827,28 +817,32 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
 
               {!hideThinkAndLogs && (
                 <>
-                  <CustomDivider />
-                  <button
-                    type="button"
-                    onClick={() => handleToggleChange("think")}
-                    className={cn(
-                      "rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8",
-                      showThink
-                        ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white"
-                        : "bg-transparent border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-                    )}
-                  >
-                    <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                      <motion.div
-                        animate={{ rotate: showThink ? 360 : 0, scale: showThink ? 1.1 : 1 }}
-                        whileHover={{ rotate: showThink ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
-                        transition={{ type: "spring", stiffness: 260, damping: 25 }}
+                  {!hideThinkOnly && (
+                    <>
+                      <CustomDivider />
+                      <button
+                        type="button"
+                        onClick={() => handleToggleChange("think")}
+                        className={cn(
+                          "rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8",
+                          showThink
+                            ? "bg-black dark:bg-white text-white dark:text-black border-black dark:border-white"
+                            : "bg-transparent border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                        )}
                       >
-                        <BrainCog className={cn("w-4 h-4", showThink ? "text-white dark:text-black" : "text-inherit")} />
-                      </motion.div>
-                    </div>
-                    <span className="text-[10px] overflow-hidden whitespace-nowrap text-inherit flex-shrink-0">Think</span>
-                  </button>
+                        <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                          <motion.div
+                            animate={{ rotate: showThink ? 360 : 0, scale: showThink ? 1.1 : 1 }}
+                            whileHover={{ rotate: showThink ? 360 : 15, scale: 1.1, transition: { type: "spring", stiffness: 300, damping: 10 } }}
+                            transition={{ type: "spring", stiffness: 260, damping: 25 }}
+                          >
+                            <BrainCog className={cn("w-4 h-4", showThink ? "text-white dark:text-black" : "text-inherit")} />
+                          </motion.div>
+                        </div>
+                        <span className="text-[10px] overflow-hidden whitespace-nowrap text-inherit flex-shrink-0">Think</span>
+                      </button>
+                    </>
+                  )}
 
                   <CustomDivider />
 
@@ -882,11 +876,9 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
             tooltip={
               isLoading
                 ? "Stop generation"
-                : isRecording
-                ? "Stop recording"
                 : hasContent
                 ? "Send message"
-                : "Voice message"
+                : "Type a message to send"
             }
           >
             <Button
@@ -894,27 +886,17 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
               size="icon"
               className={cn(
                 "h-8 w-8 rounded-full transition-all duration-200",
-                isRecording
-                  ? "bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500 hover:text-red-400"
-                  : hasContent
+                hasContent
                   ? "bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
-                  : "bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                  : "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
               )}
-              onClick={() => {
-                if (isRecording) setIsRecording(false);
-                else if (hasContent) handleSubmit();
-                else setIsRecording(true);
-              }}
-              disabled={isLoading && !hasContent}
+              onClick={handleSubmit}
+              disabled={isLoading || !hasContent}
             >
               {isLoading ? (
                 <Square className="h-4 w-4 animate-pulse" />
-              ) : isRecording ? (
-                <StopCircle className="h-5 w-5 text-red-500" />
-              ) : hasContent ? (
-                <ArrowUp className="h-4 w-4" />
               ) : (
-                <Mic className="h-5 w-5 transition-colors" />
+                <ArrowUp className="h-4 w-4" />
               )}
             </Button>
           </PromptInputAction>

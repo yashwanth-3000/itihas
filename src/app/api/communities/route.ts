@@ -45,9 +45,9 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
     const sortBy = searchParams.get('sortBy') || 'newest';
     
-    // Get authenticated user to check their votes (fallback to demo user for testing)
+    // Get authenticated user to check their votes
     const user = await getAuthenticatedUser(request);
-    const userId = user?.id || '1ee6046f-f3fd-4687-aced-ecb258ba2975'; // Yashwanth's user ID
+    const userId = user?.id; // Only use authenticated user, no fallback
 
     // Build the query with user join for author information
     let query = supabase
@@ -190,13 +190,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get authenticated user (optional - fallback to demo user)
+    // Get authenticated user - require authentication for creating places
     const user = await getAuthenticatedUser(request);
-    const userId = user?.id || '1ee6046f-f3fd-4687-aced-ecb258ba2975'; // Fallback to Yashwanth's ID
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    const userId = user.id;
 
     // First, we need to get or create a community for this place
     // For now, let's get the first available community or create a default one
-    let { data: communities, error: communityError } = await supabase
+    const { data: communities, error: communityError } = await supabase
       .from('communities')
       .select('id')
       .limit(1);
@@ -404,9 +407,12 @@ export async function PATCH(request: NextRequest) {
             );
           }
 
-          // Get authenticated user for voting (optional - fallback to demo user)
+          // Get authenticated user for voting - require authentication
           const user = await getAuthenticatedUser(request);
-          const userId = user?.id || '1ee6046f-f3fd-4687-aced-ecb258ba2975'; // Fallback to Yashwanth's ID
+          if (!user) {
+            return NextResponse.json({ error: 'Authentication required for voting' }, { status: 401 });
+          }
+          const userId = user.id;
 
           // Use smart voting RPC function
           const { data, error } = await supabase

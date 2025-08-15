@@ -2,12 +2,13 @@
 
 import { NavBar } from "@/components/ui/tubelight-navbar";
 
-import { Home, MessageCircle, User, Compass, Star, MapPin, Eye, Calendar, ArrowUp, ArrowDown, TrendingUp, ArrowLeft, Send, Map, Navigation, BookOpen, Megaphone, ExternalLink } from "lucide-react";
+import { Home, MessageCircle, User, Compass, MapPin, Calendar, ArrowUp, ArrowDown, ArrowLeft, Send, Map, Navigation, BookOpen, Megaphone } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 // Apple system font stack for a clean, native feel
 const APPLE_SYSTEM_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, system-ui, sans-serif";
@@ -103,6 +104,42 @@ export default function PlaceDetailPage() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+
+  // Helper function for authenticated API calls
+  const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}) => {
+    const session = await supabase.auth.getSession();
+    const token = session.data.session?.access_token;
+    
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`,
+      ...(options.headers as Record<string, string> || {}),
+    };
+
+    // Only add Content-Type if not FormData (browser sets it automatically for FormData)
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    return fetch(url, {
+      ...options,
+      headers,
+    });
+  };
+
+  // Auto-clear toast after 3 seconds
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   const navItems = [
     { name: 'Home', url: '/', icon: Home },
@@ -211,8 +248,16 @@ export default function PlaceDetailPage() {
   const handleVote = async (voteType: 'up' | 'down') => {
     if (!place) return;
     
+    // Check if user is authenticated
+    if (!user) {
+      setToast({ message: 'Please sign in to vote', type: 'error' });
+      return;
+    }
+    
     try {
       const previousVote = place.userVote;
+      const previousUpvotes = place.upvotes;
+      const previousDownvotes = place.downvotes;
       
       // Update local state optimistically
       setPlace(prev => {
@@ -220,7 +265,7 @@ export default function PlaceDetailPage() {
         
         let newUpvotes = prev.upvotes;
         let newDownvotes = prev.downvotes;
-        let newUserVote = voteType;
+        let newUserVote: 'up' | 'down' | null = voteType;
 
         // Handle previous vote removal
         if (prev.userVote === 'up') newUpvotes--;
@@ -242,12 +287,9 @@ export default function PlaceDetailPage() {
         };
       });
 
-      // Update on server
-      const response = await fetch('/api/communities', {
+      // Update on server with authentication
+      const response = await makeAuthenticatedRequest('/api/communities', {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           id: place.id,
           action: 'vote',
@@ -268,9 +310,13 @@ export default function PlaceDetailPage() {
             userVote: previousVote
           };
         });
+        setToast({ message: `Failed to update vote: ${result.error}`, type: 'error' });
         console.error('Failed to update vote:', result.error);
+      } else {
+        setToast({ message: 'Vote updated successfully!', type: 'success' });
       }
     } catch (error) {
+      setToast({ message: 'Error updating vote. Please try again.', type: 'error' });
       console.error('Error updating vote:', error);
       // Revert optimistic update on error
       setPlace(prev => {
@@ -291,16 +337,17 @@ export default function PlaceDetailPage() {
     e.preventDefault();
     if (!newComment.trim() || !place) return;
 
-    // Anyone can post comments now
+    // Check if user is authenticated
+    if (!user) {
+      setToast({ message: 'Please sign in to post a comment', type: 'error' });
+      return;
+    }
 
     setIsSubmittingComment(true);
     
     try {
-      const response = await fetch(`/api/communities/${place.id}`, {
+      const response = await makeAuthenticatedRequest(`/api/communities/${place.id}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           content: newComment.trim()
         }),
@@ -316,13 +363,15 @@ export default function PlaceDetailPage() {
 
         setComments(prev => [comment, ...prev]);
         setNewComment('');
-        
+        setToast({ message: 'Comment posted successfully!', type: 'success' });
 
       } else {
+        setToast({ message: `Failed to post comment: ${result.error}`, type: 'error' });
         throw new Error(result.error);
       }
     } catch (error) {
       console.error('Error posting comment:', error);
+      setToast({ message: 'Error posting comment. Please try again.', type: 'error' });
 
     } finally {
       setIsSubmittingComment(false);
@@ -341,7 +390,7 @@ export default function PlaceDetailPage() {
         
         let newUpvotes = comment.upvotes;
         let newDownvotes = comment.downvotes;
-        let newUserVote = voteType;
+        let newUserVote: 'up' | 'down' | null = voteType;
 
         // Handle previous vote removal
         if (comment.userVote === 'up') newUpvotes--;
@@ -809,6 +858,25 @@ export default function PlaceDetailPage() {
         </div>
       </div>
 
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-[9999] p-4 rounded-lg shadow-lg max-w-sm ${
+          toast.type === 'success' 
+            ? 'bg-green-500 text-white' 
+            : 'bg-red-500 text-white'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span>{toast.message}</span>
+            <button 
+              onClick={() => setToast(null)}
+              className="ml-4 text-white hover:text-gray-200"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

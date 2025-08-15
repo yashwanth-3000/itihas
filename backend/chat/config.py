@@ -18,7 +18,8 @@ class ChatConfig:
     # Application Settings
     DEBUG = os.getenv("DEBUG", "False").lower() == "true"
     HOST = os.getenv("HOST", "0.0.0.0")
-    PORT = int(os.getenv("PORT", 8001))  # Different port for chat API
+    PORT = int(os.getenv("PORT", 8001))  # Railway will override this
+    RAILWAY_ENVIRONMENT = os.getenv("RAILWAY_ENVIRONMENT_NAME")  # Railway deployment detection
     
     # Chat-specific settings
     MAX_CONVERSATION_HISTORY = int(os.getenv("MAX_CONVERSATION_HISTORY", "10"))

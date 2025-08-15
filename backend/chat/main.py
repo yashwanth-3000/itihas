@@ -32,9 +32,18 @@ app = FastAPI(
 )
 
 # Configure CORS
+origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+# Add Railway production URLs if deployed
+if ChatConfig.RAILWAY_ENVIRONMENT:
+    origins.extend([
+        "https://*.railway.app",
+        "https://*.up.railway.app"
+    ])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Add your frontend URLs
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

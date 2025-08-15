@@ -9,7 +9,7 @@ import Link from "next/link";
 function Hero() {
   const [titleNumber, setTitleNumber] = useState(0);
   const titles = useMemo(
-    () => ["intelligent", "powerful", "elegant", "precise", "revolutionary"],
+    () => ["cultural", "historical", "meaningful", "inspiring", "timeless"],
     []
   );
 
@@ -114,12 +114,12 @@ function Hero() {
         <div className="flex gap-8 py-16 lg:py-32 items-center justify-center flex-col min-h-screen">
           <div>
             <Button variant="secondary" size="sm" className="gap-4 border border-white/30 bg-white/10 backdrop-blur-sm text-white hover:bg-white/20">
-              Introducing Itihas AI <MoveRight className="w-4 h-4" />
+              Stories of Culture & Heritage <MoveRight className="w-4 h-4" />
             </Button>
           </div>
           <div className="flex gap-4 flex-col">
             <h1 className="text-5xl md:text-7xl max-w-2xl tracking-tighter text-center font-regular">
-              <span className="text-white font-bold">Itihas is</span>
+              <span className="text-white font-bold">itihas is</span>
               <span className="relative flex w-full justify-center overflow-hidden text-center md:pb-4 md:pt-1">
                 &nbsp;
                 {titles.map((title, index) => (
@@ -147,8 +147,8 @@ function Hero() {
             </h1>
 
             <p className="text-lg md:text-xl leading-relaxed tracking-tight text-white/90 max-w-2xl text-center">
-              Your intelligent AI companion for meaningful conversations. 
-              Experience advanced features like voice recording, image uploads, and interactive modes.
+              Discover and share the rich tapestry of human culture and heritage. 
+              Explore historical places, learn about traditions, and contribute to preserving our collective memory.
             </p>
           </div>
           <div className="flex flex-row gap-3">
@@ -158,8 +158,8 @@ function Hero() {
               </Link>
             </Button>
             <Button size="lg" className="gap-4 bg-white text-black hover:bg-white/90" asChild>
-              <Link href="/chat">
-                Get Started <MoveRight className="w-4 h-4" />
+              <Link href="/explore/communities">
+                Explore Places <MoveRight className="w-4 h-4" />
               </Link>
             </Button>
           </div>

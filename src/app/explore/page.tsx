@@ -4,9 +4,9 @@ import { NavBar } from "@/components/ui/tubelight-navbar";
 import { PromptInputBox } from "@/components/ui/ai-prompt-box";
 import { AnimatedTestimonials } from "@/components/ui";
 import VaporizeTextCycle, { Tag as VaporizeTag } from "@/components/ui/vaporize-text-cycle";
-import { Home, MessageCircle, User, Compass, BookOpen, ArrowLeft, Sparkles, Telescope, Map, Lightbulb } from "lucide-react";
+import { Home, MessageCircle, User, Compass } from "lucide-react";
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+
 import { useRouter } from "next/navigation";
 // Apple system font stack for a clean, native feel
 const APPLE_SYSTEM_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, system-ui, sans-serif";

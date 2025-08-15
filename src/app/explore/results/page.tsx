@@ -1,7 +1,7 @@
 "use client";
 import { NavBar } from "@/components/ui/tubelight-navbar";
 import { AnimatedTestimonials, GoogleStreetView } from "@/components/ui";
-import Image from "next/image";
+
 import { Home, MessageCircle, User, Compass, MapPin, ArrowRight, X } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, Suspense, useRef } from "react";
@@ -519,7 +519,7 @@ function ExploreResultsContent() {
                 <div className="text-center space-y-2">
                   <h3 className="text-xl font-semibold text-white">No Results Found</h3>
                   <p className="text-white/70 max-w-md">
-                    We couldn't find any places matching "{searchTerm}". Try a different search term or location.
+                    We couldn&apos;t find any places matching &quot;{searchTerm}&quot;. Try a different search term or location.
                   </p>
                 </div>
               </div>
@@ -688,7 +688,7 @@ function ExploreResultsContent() {
                     />
                     {/* Rate limiting info */}
                     <div className="text-xs text-white/50 bg-black/20 p-2 rounded border border-white/10">
-                      💡 If Street View shows "Too Many Requests" errors, wait a few seconds and try refreshing the page. Google's API has rate limits.
+                      💡 If Street View shows &quot;Too Many Requests&quot; errors, wait a few seconds and try refreshing the page. Google&apos;s API has rate limits.
                     </div>
                   </div>
                 ) : (

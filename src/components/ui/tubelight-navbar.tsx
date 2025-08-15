@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation"
 import { LucideIcon, User, LogIn, LogOut } from "lucide-react"
 import { cn } from "../../lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
-import { supabase } from "@/lib/supabase"
+
 
 interface NavItem {
   name: string
@@ -30,37 +30,11 @@ export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme,
   const [isMobile, setIsMobile] = useState(false)
   const { user, profile, loading, signInWithGoogle, signOut } = useAuth()
   const [showProfileMenu, setShowProfileMenu] = useState(false)
-  const [localProfile, setLocalProfile] = useState<any>(null)
-
-  // Force load profile data for testing
-  useEffect(() => {
-    const loadProfileData = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', '1ee6046f-f3fd-4687-aced-ecb258ba2975')
-          .single()
-
-        if (!error && data) {
-          setLocalProfile(data)
-          console.log('Navbar: Profile loaded directly:', {
-            name: data.full_name,
-            avatar: data.avatar_url
-          })
-        }
-      } catch (error) {
-        console.error('Navbar: Failed to load profile:', error)
-      }
-    }
-
-    loadProfileData()
-  }, [])
 
   // Debug profile data
   useEffect(() => {
-    console.log('Profile data in navbar:', {profile, localProfile})
-  }, [profile, localProfile])
+    console.log('Profile data in navbar:', {profile, user})
+  }, [profile, user])
 
   useEffect(() => {
     const handleResize = () => {
@@ -263,17 +237,17 @@ export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme,
                                  : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
                   )}
                 >
-                  {(profile?.avatar_url || localProfile?.avatar_url) ? (
+                  {profile?.avatar_url ? (
                     <img 
-                      src={profile?.avatar_url || localProfile?.avatar_url} 
-                      alt={(profile?.full_name || localProfile?.full_name) || 'User'} 
+                      src={profile.avatar_url} 
+                      alt={profile.full_name || 'User'} 
                       className="w-6 h-6 rounded-full"
                       onError={(e) => {
-                        console.error('Avatar failed to load:', profile?.avatar_url || localProfile?.avatar_url);
+                        console.error('Avatar failed to load:', profile.avatar_url);
                         e.currentTarget.style.display = 'none';
                       }}
                       onLoad={() => {
-                        console.log('Avatar loaded successfully:', profile?.avatar_url || localProfile?.avatar_url);
+                        console.log('Avatar loaded successfully:', profile.avatar_url);
                       }}
                     />
                   ) : (
@@ -281,7 +255,7 @@ export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme,
                   )}
                   {/* Debug info - moved to useEffect */}
                   <span className="hidden md:inline">
-                    {profile?.full_name || localProfile?.full_name || user?.email?.split('@')[0] || 'Profile'}
+                    {profile?.full_name || user?.email?.split('@')[0] || 'Profile'}
                   </span>
                 </button>
                 
@@ -300,17 +274,17 @@ export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme,
                          }`}>
                     <div className="p-3 border-b border-gray-200/50">
                       <div className="flex items-center gap-3">
-                        {(profile?.avatar_url || localProfile?.avatar_url) ? (
+                        {profile?.avatar_url ? (
                           <img 
-                            src={profile?.avatar_url || localProfile?.avatar_url} 
-                            alt={(profile?.full_name || localProfile?.full_name) || 'User'} 
+                            src={profile.avatar_url} 
+                            alt={profile.full_name || 'User'} 
                             className="w-10 h-10 rounded-full"
                             onError={(e) => {
-                              console.error('Profile menu avatar failed to load:', profile?.avatar_url || localProfile?.avatar_url);
+                              console.error('Profile menu avatar failed to load:', profile.avatar_url);
                               e.currentTarget.style.display = 'none';
                             }}
                             onLoad={() => {
-                              console.log('Profile menu avatar loaded successfully:', profile?.avatar_url || localProfile?.avatar_url);
+                              console.log('Profile menu avatar loaded successfully:', profile.avatar_url);
                             }}
                           />
                         ) : (
@@ -322,12 +296,12 @@ export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme,
                           <div className={`font-medium text-sm ${
                             comicTheme ? 'text-black' : exploreTheme ? 'text-gray-800' : 'text-gray-900'
                           }`}>
-                            {profile?.full_name || localProfile?.full_name || 'User'}
+                            {profile?.full_name || 'User'}
                           </div>
                           <div className={`text-xs ${
                             comicTheme ? 'text-gray-600' : exploreTheme ? 'text-gray-600' : 'text-gray-500'
                           }`}>
-                            {user?.email || localProfile?.email}
+                            {user?.email}
                           </div>
                         </div>
                       </div>

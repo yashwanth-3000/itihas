@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Mail, Lock, User as UserIcon } from 'lucide-react'
+import { X, User as UserIcon } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface AuthModalProps {
@@ -71,7 +71,7 @@ export default function AuthModal({ isOpen, onClose, defaultMode = 'signin' }: A
                     <UserIcon className="w-8 h-8 text-white" />
                   </div>
                   <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                    {mode === 'signin' ? 'Welcome Back' : 'Join Itihas'}
+                    {mode === 'signin' ? 'Welcome Back' : 'Join itihas'}
                   </h2>
                   <p className="text-gray-600">
                     {mode === 'signin' 

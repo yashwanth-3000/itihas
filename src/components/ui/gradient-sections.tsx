@@ -74,7 +74,7 @@ function ThirdSection() {
           Ready to Get Started?
         </h2>
         <p className="text-xl md:text-2xl text-white/80 max-w-3xl mx-auto leading-relaxed mb-12">
-          Join thousands of users who are already experiencing the power of Itihas AI. 
+                      Join thousands of users who are already experiencing the power of itihas - Stories of Culture & Heritage. 
           Start your journey today and discover what intelligent conversation feels like.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">

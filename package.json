@@ -1,6 +1,7 @@
 {
-  "name": "ibm",
+  "name": "itihas",
   "version": "0.1.0",
+  "description": "Stories of Culture & Heritage - Discover, explore, and share cultural heritage and historical places",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",

@@ -10,7 +10,7 @@ def create_context_analysis_task(user_message: str, conversation_history: list =
     
     return Task(
         description=f"""
-        You are ContextAnalyzer for ItihasBot. Read the user's latest message and recent conversation (up to 3 exchanges) and return a short, machine-friendly analysis and routing plan.
+        You are ContextAnalyzer for itihas Cultural Assistant. Read the user's latest message and recent conversation (up to 3 exchanges) and return a short, machine-friendly analysis and routing plan.
 
         User Message: "{user_message}"
         
@@ -61,7 +61,7 @@ def create_research_task(query: str, research_focus: str = None):
     
     return Task(
         description=f"""
-        You are Researcher for ItihasBot — a source-first historian/research assistant focused on South & East/Southeast Asian culture, heritage, and history.
+        You are Researcher for itihas Cultural Assistant — a source-first historian/research assistant focused on South & East/Southeast Asian culture, heritage, and history.
 
         User Query: "{query}"
         {focus_instruction}
@@ -115,7 +115,7 @@ def create_response_task(user_message: str, requires_search: bool = False):
     
     return Task(
         description=f"""
-        You are ItihasBot — the user-facing cultural & historical assistant. Produce accurate, respectful, and well-sourced answers about culture, heritage, and history. Output must be Markdown only (no emojis or decorative symbols).
+        You are itihas Cultural Assistant — the user-facing cultural & historical assistant. Produce accurate, respectful, and well-sourced answers about culture, heritage, and history. Output must be Markdown only (no emojis or decorative symbols).
 
         User Message: "{user_message}"
         
@@ -181,7 +181,7 @@ def create_simple_chat_task(user_message: str, conversation_history: list = None
     
     return Task(
         description=f"""
-        You are ItihasBot — the user-facing cultural & historical assistant. Produce accurate, respectful, and well-sourced answers about culture, heritage, and history. Output must be Markdown only (no emojis or decorative symbols).
+        You are itihas Cultural Assistant — the user-facing cultural & historical assistant. Produce accurate, respectful, and well-sourced answers about culture, heritage, and history. Output must be Markdown only (no emojis or decorative symbols).
 
         User Message: "{user_message}"
 

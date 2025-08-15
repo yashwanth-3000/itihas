@@ -24,9 +24,12 @@ async function getAuthenticatedUser(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get authenticated user (optional - fallback to demo user)
+    // Get authenticated user - require authentication for uploads
     const user = await getAuthenticatedUser(request);
-    const userId = user?.id || '1ee6046f-f3fd-4687-aced-ecb258ba2975'; // Fallback to Yashwanth's ID
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required for uploads' }, { status: 401 });
+    }
+    const userId = user.id;
 
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];

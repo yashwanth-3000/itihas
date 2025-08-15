@@ -22,6 +22,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<DatabaseUser | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  
+  // Check if user has explicitly signed out (persisted in localStorage)
+  const getHasSignedOut = () => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('hasSignedOut') === 'true'
+    }
+    return false
+  }
+  
+  const setHasSignedOut = (value: boolean) => {
+    if (typeof window !== 'undefined') {
+      if (value) {
+        localStorage.setItem('hasSignedOut', 'true')
+      } else {
+        localStorage.removeItem('hasSignedOut')
+      }
+    }
+  }
 
   useEffect(() => {
     // Get initial session
@@ -31,8 +49,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         fetchProfile(session.user.id)
       } else {
-        // For testing: load demo user profile
-        loadDemoProfile()
+        // No demo profile loading - user must sign in to see profile
+        setLoading(false)
       }
     })
 
@@ -44,11 +62,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null)
       
       if (session?.user) {
+        setHasSignedOut(false) // Reset sign out flag when user signs in
         await fetchProfile(session.user.id)
       } else {
         setProfile(null)
-        // For testing: load demo user profile
-        loadDemoProfile()
+        // No demo profile loading - user must sign in to see profile
+        setLoading(false)
       }
     })
 
@@ -64,31 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const loadDemoProfile = async () => {
-    try {
-      // Load Yashwanth's profile for testing when not authenticated
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', '1ee6046f-f3fd-4687-aced-ecb258ba2975')
-        .single()
 
-      if (!error && data) {
-        setProfile(data)
-        console.log('Demo profile loaded with avatar:', {
-          name: data.full_name,
-          avatar: data.avatar_url,
-          email: data.email
-        }) // Enhanced debug log
-      } else {
-        console.error('Failed to load demo profile:', error)
-      }
-    } catch (error) {
-      console.error('Error loading demo profile:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -156,6 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    setHasSignedOut(true) // Mark that user has explicitly signed out
     const { error } = await supabase.auth.signOut()
     if (error) {
       console.error('Error signing out:', error)

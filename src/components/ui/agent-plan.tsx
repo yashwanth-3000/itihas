@@ -8,7 +8,6 @@ import {
   CircleDotDashed,
   CircleX,
   Clock,
-  Pause,
   Play,
 } from "lucide-react";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";

@@ -2,12 +2,14 @@
 
 import { NavBar } from "@/components/ui/tubelight-navbar";
 import { PlaceUploadForm } from "@/components/ui/place-upload-form";
+import { useEffect } from "react";
 
 import { Home, MessageCircle, User, Compass, Plus, Star, MapPin, Filter, X, ArrowUp, ArrowDown, Search, ChevronUp, ChevronDown, CheckCircle, Flame, Award, Shield, Clock } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 // Apple system font stack for a clean, native feel
 const APPLE_SYSTEM_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, system-ui, sans-serif";
@@ -160,6 +162,11 @@ const mockPlaces: CommunityPlace[] = [
 ];
 
 export default function CommunitiesPage() {
+  // Update document title
+  useEffect(() => {
+    document.title = "Cultural Places - itihas";
+  }, []);
+
   const router = useRouter();
   const { user, session } = useAuth();
   const [places, setPlaces] = useState<CommunityPlace[]>([]);
@@ -167,11 +174,47 @@ export default function CommunitiesPage() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<CommunityPlace | null>(null);
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+
+  // Auto-clear toast after 3 seconds
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [locationQuery, setLocationQuery] = useState('');
 
   const filterDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Helper function for authenticated API calls
+  const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}) => {
+    const session = await supabase.auth.getSession();
+    const token = session.data.session?.access_token;
+    
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`,
+      ...(options.headers as Record<string, string> || {}),
+    };
+
+    // Only add Content-Type if not FormData (browser sets it automatically for FormData)
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    return fetch(url, {
+      ...options,
+      headers,
+    });
+  };
 
   const navItems = [
     { name: 'Home', url: '/', icon: Home },
@@ -230,9 +273,13 @@ export default function CommunitiesPage() {
   });
 
   const handlePlaceSubmit = async (formData: any) => {
-    try {
-          // Anyone can add places now
+    // Check if user is authenticated
+    if (!user) {
+      setToast({ message: 'Please sign in to add a place', type: 'error' });
+      return;
+    }
 
+    try {
       let imageUrls: string[] = [];
       
       // Upload images to Supabase Storage if any
@@ -242,7 +289,7 @@ export default function CommunitiesPage() {
           uploadFormData.append('files', file);
         });
 
-        const uploadResponse = await fetch('/api/upload', {
+        const uploadResponse = await makeAuthenticatedRequest('/api/upload', {
           method: 'POST',
           body: uploadFormData,
         });
@@ -271,11 +318,8 @@ export default function CommunitiesPage() {
         category: formData.category
       };
 
-      const response = await fetch('/api/communities', {
+      const response = await makeAuthenticatedRequest('/api/communities', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(placeData),
       });
 
@@ -284,8 +328,11 @@ export default function CommunitiesPage() {
       if (result.success) {
         // Refresh the places list
         fetchPlaces();
+        setToast({ message: 'Place added successfully!', type: 'success' });
+        setShowUploadForm(false);
       } else {
         console.error('Failed to submit place:', result.error);
+        setToast({ message: `Failed to add place: ${result.error}`, type: 'error' });
         // Add to local state as fallback
         const newPlace: CommunityPlace = {
           ...placeData,
@@ -312,6 +359,7 @@ export default function CommunitiesPage() {
       }
     } catch (error) {
       console.error('Error submitting place:', error);
+      setToast({ message: 'Error submitting place. Please try again.', type: 'error' });
     }
   };
 
@@ -341,11 +389,17 @@ export default function CommunitiesPage() {
 
 
   const handleVote = async (placeId: string, voteType: 'up' | 'down') => {
-    // Anyone can vote now
+    // Check if user is authenticated
+    if (!user) {
+      setToast({ message: 'Please sign in to vote', type: 'error' });
+      return;
+    }
 
     try {
       const place = places.find(p => p.id === placeId);
       const previousVote = place?.userVote;
+      const previousUpvotes = place?.upvotes || 0;
+      const previousDownvotes = place?.downvotes || 0;
       
       // Update local state optimistically
       setPlaces(prev => prev.map(p => {
@@ -375,14 +429,9 @@ export default function CommunitiesPage() {
         };
       }));
 
-
-
-      // Update on server
-      const response = await fetch('/api/communities', {
+      // Update on server with authentication
+      const response = await makeAuthenticatedRequest('/api/communities', {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           id: placeId,
           action: 'vote',
@@ -395,13 +444,34 @@ export default function CommunitiesPage() {
         // Revert optimistic update on error
         setPlaces(prev => prev.map(p => {
           if (p.id !== placeId) return p;
-          return { ...p, userVote: previousVote };
+          return { 
+            ...p, 
+            userVote: previousVote,
+            upvotes: previousUpvotes,
+            downvotes: previousDownvotes
+          };
         }));
+        setToast({ message: `Failed to update vote: ${result.error}`, type: 'error' });
         console.error('Failed to update vote:', result.error);
+      } else {
+        setToast({ message: 'Vote updated successfully!', type: 'success' });
       }
     } catch (error) {
+      // Revert optimistic update on error
+      const place = places.find(p => p.id === placeId);
+      if (place) {
+        setPlaces(prev => prev.map(p => {
+          if (p.id !== placeId) return p;
+          return { 
+            ...p, 
+            userVote: place.userVote,
+            upvotes: place.upvotes,
+            downvotes: place.downvotes
+          };
+        }));
+      }
+      setToast({ message: 'Error updating vote. Please try again.', type: 'error' });
       console.error('Error updating vote:', error);
-      // You could add a revert mechanism here
     }
   };
 
@@ -893,6 +963,24 @@ export default function CommunitiesPage() {
         )}
       </AnimatePresence>
 
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-[9999] p-4 rounded-lg shadow-lg max-w-sm ${
+          toast.type === 'success' 
+            ? 'bg-green-500 text-white' 
+            : 'bg-red-500 text-white'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span>{toast.message}</span>
+            <button 
+              onClick={() => setToast(null)}
+              className="ml-4 text-white hover:text-gray-200"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

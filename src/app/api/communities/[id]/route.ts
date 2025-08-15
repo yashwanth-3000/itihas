@@ -55,10 +55,10 @@ interface Comment {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const placeId = params.id;
+    const { id: placeId } = await params;
 
     // Fetch place from database with user information
     const { data: place, error: placeError } = await supabase
@@ -178,10 +178,10 @@ async function getAuthenticatedUser(request: NextRequest) {
 // Handle comment posting
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const placeId = params.id;
+    const { id: placeId } = await params;
     const body = await request.json();
 
     if (!body.content || !body.content.trim()) {
@@ -191,9 +191,12 @@ export async function POST(
       );
     }
 
-    // Get authenticated user (optional - fallback to demo user)
+    // Get authenticated user - require authentication for commenting
     const user = await getAuthenticatedUser(request);
-    const userId = user?.id || '1ee6046f-f3fd-4687-aced-ecb258ba2975'; // Fallback to Yashwanth's ID
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required for commenting' }, { status: 401 });
+    }
+    const userId = user.id;
 
     const { data: newComment, error: commentError } = await supabase
       .from('comments')
@@ -224,8 +227,8 @@ export async function POST(
     const transformedComment: Comment = {
       id: newComment.id,
       author: {
-        name: newComment.users?.full_name || 'Community Member',
-        avatar: newComment.users?.avatar_url || 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
+        name: (newComment as any).users?.full_name || 'Community Member',
+        avatar: (newComment as any).users?.avatar_url || 'https://images.unsplash.com/photo-1494790108755-2616b612c98b?w=150',
         verified: false
       },
       content: newComment.content,
@@ -252,7 +255,7 @@ export async function POST(
 // Handle comment voting
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json();

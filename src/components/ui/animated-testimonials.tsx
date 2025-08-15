@@ -115,7 +115,6 @@ export function AnimatedTestimonials({
                     unoptimized={testimonial.src.startsWith('http') || testimonial.src.includes('.png?v=')}
                     onError={(e) => {
                       try {
-                        // @ts-expect-error Next Image underlying img element
                         const target = e.currentTarget;
                         if (target.src !== '/explore.png') {
                           target.src = '/explore.png';

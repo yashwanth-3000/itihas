@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Upload, MapPin, Star, Plus, Trash2, Camera, Map } from "lucide-react";
+import { X, MapPin, Star, Plus, Trash2, Camera, Map } from "lucide-react";
 
 interface PlaceFormData {
   name: string;

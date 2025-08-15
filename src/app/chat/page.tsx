@@ -5,12 +5,11 @@ import { PromptInputBox } from "@/components/ui/ai-prompt-box";
 import { NavBar } from "@/components/ui/tubelight-navbar";
 import { ModelSelector } from "@/components/ui/model-selector";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
-import { Moon, Sun, Bot, User, ArrowLeft, Home, MessageCircle, Compass, BookOpen } from "lucide-react";
+import { Moon, Sun, Bot, User, ArrowLeft, Home, MessageCircle, Compass } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import AgentPlan from "@/components/ui/agent-plan";
-import { AgentWorkflow, WorkflowPlan } from "@/lib/agent-workflow";
+
 
 interface Message {
   id: string;
@@ -30,14 +29,18 @@ export default function ChatPage() {
 }
 
 function ChatContent() {
+  // Update document title
+  useEffect(() => {
+    document.title = "Cultural Assistant - itihas";
+  }, []);
+
   const searchParams = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   // Model selection removed as we only use IBM Granite
-  const [currentWorkflow, setCurrentWorkflow] = useState<AgentWorkflow | null>(null);
-  const [workflowPlan, setWorkflowPlan] = useState<WorkflowPlan | null>(null);
-  const [isThinkMode, setIsThinkMode] = useState(false);
+
+  const [isThinkMode, setIsThinkMode] = useState(true); // Always suggest search mode
   const [isChatStarted, setIsChatStarted] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [showNavbar, setShowNavbar] = useState(true);
@@ -87,7 +90,7 @@ Ask me about monuments, legends, festivals, art, or anything that sparks your cu
 
   // Initialize WebSocket connection
   useEffect(() => {
-    const websocket = new WebSocket(`ws://localhost:8001/ws/${clientId}`);
+    const websocket = new WebSocket(`wss://itihas-production.up.railway.app/ws/${clientId}`);
     
     websocket.onopen = () => {
       console.log('WebSocket connected');
@@ -153,14 +156,7 @@ Ask me about monuments, legends, festivals, art, or anything that sparks your cu
     }
   }, [isDarkMode]);
 
-  // Clean up workflow on unmount
-  useEffect(() => {
-    return () => {
-      if (currentWorkflow) {
-        currentWorkflow.destroy();
-      }
-    };
-  }, [currentWorkflow]);
+
 
   const handleTaskStatusChange = (taskId: string, status: string) => {
     // This could be used to manually override task status if needed
@@ -169,13 +165,6 @@ Ask me about monuments, legends, festivals, art, or anything that sparks your cu
 
   const handleThinkModeChange = (newThinkMode: boolean) => {
     setIsThinkMode(newThinkMode);
-    
-    // If think mode is disabled, clean up any existing workflow
-    if (!newThinkMode && currentWorkflow) {
-      currentWorkflow.destroy();
-      setCurrentWorkflow(null);
-      setWorkflowPlan(null);
-    }
   };
 
 
@@ -328,7 +317,7 @@ Ask me about monuments, legends, festivals, art, or anything that sparks your cu
           }, 'Initiating semantic web search for real-time information...', 'EXA Search Tool', 1);
         }
 
-        const response = await fetch('http://localhost:8001/chat', {
+        const response = await fetch('https://itihas-production.up.railway.app/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -408,60 +397,7 @@ Ask me about monuments, legends, festivals, art, or anything that sparks your cu
         
         setMessages(prev => [...prev, botResponse]);
 
-        // Show workflow info if think mode was used
-        if (isThinkMode && data.metadata) {
-          const workflowInfo: WorkflowPlan = {
-            id: data.conversation_id,
-            title: `${data.metadata.response_type === 'research_chat' ? 'Research' : 'Analysis'} Chat`,
-            description: data.metadata.research_used ? 'AI chat with web search capabilities' : 'Direct AI conversation',
-            type: data.metadata.response_type === 'research_chat' ? 'research' : 'analysis',
-            status: 'completed',
-            createdAt: new Date(),
-            estimatedCompletion: new Date(),
-            tasks: data.metadata.research_used ? 
-              [
-                { 
-                  id: '1', 
-                  title: 'Research Information', 
-                  description: 'Search for current information relevant to user query',
-                  status: 'completed' as const,
-                  priority: 'high' as const,
-                  level: 1,
-                  dependencies: [],
-                  subtasks: [],
-                  estimatedDuration: 30,
-                  progress: 100
-                }, 
-                { 
-                  id: '2', 
-                  title: 'Generate Response', 
-                  description: 'Create comprehensive response using research findings',
-                  status: 'completed' as const,
-                  priority: 'high' as const,
-                  level: 2,
-                  dependencies: ['1'],
-                  subtasks: [],
-                  estimatedDuration: 15,
-                  progress: 100
-                }
-              ] :
-              [
-                { 
-                  id: '1', 
-                  title: 'Generate Chat Response', 
-                  description: 'Provide direct conversational response',
-                  status: 'completed' as const,
-                  priority: 'medium' as const,
-                  level: 1,
-                  dependencies: [],
-                  subtasks: [],
-                  estimatedDuration: 10,
-                  progress: 100
-                }
-              ]
-          };
-          setWorkflowPlan(workflowInfo);
-        }
+
       } else {
         throw new Error(data.error || 'Chat API returned an error');
       }
@@ -484,8 +420,7 @@ Ask me about monuments, legends, festivals, art, or anything that sparks your cu
     }
   };
 
-  // Check if we should show the workflow plan
-  const lastUserMessage = messages.filter(m => m.sender === 'user').pop();
+
 
   return (
     <div className={`h-screen flex flex-col transition-colors duration-300 ${
@@ -606,15 +541,13 @@ Ask me about monuments, legends, festivals, art, or anything that sparks your cu
                     <Bot className="w-5 h-5" />
                   </div>
                                       <div>
-                      <h1 className="font-semibold text-sm">Itihas Chat</h1>
+                      <h1 className="font-semibold text-sm">itihas Cultural Assistant</h1>
                       <p className={`text-xs ${
                         isDarkMode ? 'text-gray-400' : 'text-gray-600'
                       }`}>
-                        {workflowPlan && isThinkMode
-                          ? `Working on: ${workflowPlan.type} workflow`
-                          : isThinkMode
-                            ? 'Think mode enabled - Ready for deep analysis'
-                            : 'Stories of Culture & Heritage'
+                        {isThinkMode
+                          ? 'Search mode enabled - Ready for deep research'
+                          : 'Stories of Culture & Heritage'
                         }
                       </p>
                     </div>
@@ -662,7 +595,7 @@ Ask me about monuments, legends, festivals, art, or anything that sparks your cu
                       <Bot className="w-5 h-5" />
                     </div>
                     <div>
-                      <h1 className="font-semibold text-sm">Itihas Chat</h1>
+                      <h1 className="font-semibold text-sm">itihas Cultural Assistant</h1>
                     </div>
                   </div>
                   
@@ -746,23 +679,7 @@ Ask me about monuments, legends, festivals, art, or anything that sparks your cu
                 </div>
               </motion.div>
 
-              {/* Show Workflow Plan after user messages that trigger workflows */}
-              {message.sender === 'user' && lastUserMessage?.id === message.id && workflowPlan && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.3 }}
-                  className="mt-4"
-                >
 
-                  <div className="max-w-full">
-                    <AgentPlan 
-                      workflowPlan={workflowPlan}
-                      onTaskStatusChange={handleTaskStatusChange}
-                    />
-                  </div>
-                </motion.div>
-              )}
             </div>
           ))}
           
@@ -797,8 +714,8 @@ Ask me about monuments, legends, festivals, art, or anything that sparks your cu
               onSend={handleSendMessage}
               placeholder="Ask me about monuments, festivals, traditions, or any story from the past..."
               isLoading={isLoading}
-              onThinkModeChange={handleThinkModeChange}
-              isThinkMode={isThinkMode}
+              searchAlwaysOn={true}
+              hideThinkOnly={true}
               onShowLogsToggle={() => setShowLogs(!showLogs)}
               showLogs={showLogs}
               initialValue={searchParams.get('prefill') || ''}
