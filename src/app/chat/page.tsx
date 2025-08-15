@@ -34,7 +34,7 @@ function ChatContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('gpt-4');
+  // Model selection removed as we only use IBM Granite
   const [currentWorkflow, setCurrentWorkflow] = useState<AgentWorkflow | null>(null);
   const [workflowPlan, setWorkflowPlan] = useState<WorkflowPlan | null>(null);
   const [isThinkMode, setIsThinkMode] = useState(false);
@@ -49,6 +49,9 @@ function ChatContent() {
     agent?: string;
     hierarchy?: number;
   }>>([]);
+  
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [clientId] = useState(() => Math.random().toString(36).substring(7));
   const [logsPanelWidth, setLogsPanelWidth] = useState(384); // 24rem in pixels
   const [isResizing, setIsResizing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -73,13 +76,55 @@ function ChatContent() {
     const initial: Message[] = [
       {
         id: '1',
-        content: `Hello! I'm your AI assistant. I can help you with web development, data analysis, research, and more. You can change the model using the dropdown in the header. What would you like me to work on?`,
+        content: `Hello! I’m here to share the stories, traditions, and histories that have shaped our world.
+Ask me about monuments, legends, festivals, art, or anything that sparks your curiosity about culture and heritage.`,
         sender: 'bot',
         timestamp: new Date(),
       },
     ];
     setMessages(initial);
-  }, [messages.length, selectedModel, searchParams]);
+  }, [messages.length, searchParams]);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    const websocket = new WebSocket(`ws://localhost:8001/ws/${clientId}`);
+    
+    websocket.onopen = () => {
+      console.log('WebSocket connected');
+    };
+
+    websocket.onmessage = (event) => {
+      const log = JSON.parse(event.data);
+      addChatLog(
+        log.type as any,
+        log.data,
+        log.message,
+        log.agent,
+        log.hierarchy
+      );
+    };
+
+    websocket.onclose = () => {
+      console.log('WebSocket disconnected');
+    };
+
+    setWs(websocket);
+
+    return () => {
+      websocket.close();
+    };
+  }, [clientId]);
+
+  // Keep WebSocket alive
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send('ping');
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [ws]);
 
   useEffect(() => {
     scrollToBottom();
@@ -138,10 +183,7 @@ function ChatContent() {
     setIsDarkMode(!isDarkMode);
   };
 
-  const handleModelChange = (model: string) => {
-    setSelectedModel(model);
-    console.log('Model changed to:', model);
-  };
+  // Model change handler removed as we only use IBM Granite
 
   const addChatLog = (type: 'user_input' | 'model_selection' | 'api_call' | 'response' | 'error' | 'agent_start' | 'agent_complete' | 'agent_hierarchy', data: Record<string, unknown>, message?: string, agent?: string, hierarchy?: number) => {
     setChatLogs(prev => {
@@ -262,6 +304,7 @@ function ChatContent() {
         
         const requestBody = {
           message: message,
+          conversation_id: clientId,  // Use clientId as conversation_id
           force_simple: false,  // Always allow research capability
           force_research: isThinkMode  // Force research when think mode is enabled
         };
@@ -562,28 +605,25 @@ function ChatContent() {
                   }`}>
                     <Bot className="w-5 h-5" />
                   </div>
-                  <div>
-                    <h1 className="font-semibold text-sm">AI Assistant</h1>
-                    <p className={`text-xs ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`}>
-                      {workflowPlan && isThinkMode
-                        ? `Working on: ${workflowPlan.type} workflow`
-                        : isThinkMode
-                          ? 'Think mode enabled - Ready for deep analysis'
-                          : 'Always here to help'
-                      }
-                    </p>
-                  </div>
+                                      <div>
+                      <h1 className="font-semibold text-sm">Itihas Chat</h1>
+                      <p className={`text-xs ${
+                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        {workflowPlan && isThinkMode
+                          ? `Working on: ${workflowPlan.type} workflow`
+                          : isThinkMode
+                            ? 'Think mode enabled - Ready for deep analysis'
+                            : 'Stories of Culture & Heritage'
+                        }
+                      </p>
+                    </div>
                 </div>
                 
                 <div className="flex items-center gap-3">
                   <div className="w-52">
                     <ModelSelector
-                      selectedModel={selectedModel}
-                      onModelChange={handleModelChange}
                       isDarkMode={isDarkMode}
-                      monochrome
                     />
                   </div>
                   
@@ -622,7 +662,7 @@ function ChatContent() {
                       <Bot className="w-5 h-5" />
                     </div>
                     <div>
-                      <h1 className="font-semibold text-sm">AI Assistant</h1>
+                      <h1 className="font-semibold text-sm">Itihas Chat</h1>
                     </div>
                   </div>
                   
@@ -641,10 +681,7 @@ function ChatContent() {
                 
                 <div className="px-1">
                   <ModelSelector
-                    selectedModel={selectedModel}
-                    onModelChange={handleModelChange}
                     isDarkMode={isDarkMode}
-                    monochrome
                   />
                 </div>
               </div>
@@ -758,7 +795,7 @@ function ChatContent() {
             <div className="max-w-4xl mx-auto px-4 py-4">
             <PromptInputBox 
               onSend={handleSendMessage}
-              placeholder="Ask me to build a website, analyze data, research a topic, or anything else..."
+              placeholder="Ask me about monuments, festivals, traditions, or any story from the past..."
               isLoading={isLoading}
               onThinkModeChange={handleThinkModeChange}
               isThinkMode={isThinkMode}
@@ -952,13 +989,14 @@ function ChatContent() {
                           delay: Math.min(index * 0.05, 1),
                           ease: "easeOut"
                         }}
-                        className="group -mx-2 px-2 py-1 rounded transition-colors hover:bg-gray-900/30"
+                        className="group -mx-2 px-2 py-2 rounded transition-colors hover:bg-gray-900/30 border-b border-gray-800"
                       >
-                        <div className="flex items-start space-x-2">
+                        {/* Header line */}
+                        <div className="flex items-center space-x-2 mb-1">
                           <span className={`${getLogColor(log.type)} shrink-0`}>
                             {getLogSymbol(log.type)}
                           </span>
-                          <span className={`${getLogColor(log.type)} shrink-0 uppercase text-[10px]`}>
+                          <span className={`${getLogColor(log.type)} shrink-0 uppercase text-[10px] font-bold`}>
                             {log.type.replace('_', '-')}
                           </span>
                           {log.agent && (
@@ -966,17 +1004,21 @@ function ChatContent() {
                               {log.agent}
                             </span>
                           )}
-                          <span className="flex-1 break-all text-white" style={{ paddingLeft: log.hierarchy ? `${log.hierarchy * 12}px` : '0px' }}>
+                        </div>
+
+                        {/* Content line */}
+                        <div className="ml-6 mt-1">
+                          <span className="flex-1 break-all text-white text-sm" style={{ paddingLeft: log.hierarchy ? `${log.hierarchy * 12}px` : '0px' }}>
                             {log.hierarchy && log.hierarchy > 0 ? '  '.repeat(log.hierarchy) + '└─ ' : ''}{log.message || 'Processing...'}
                           </span>
                         </div>
                         
-                        {/* Expandable details */}
-                        <details className="mt-1 ml-8">
-                          <summary className="cursor-pointer text-[10px] select-none text-gray-500 hover:text-gray-400">
-                            [DEBUG] Show raw data
+                        {/* Debug details - open by default */}
+                        <details className="mt-2 ml-6" open>
+                          <summary className="cursor-pointer text-[10px] select-none text-gray-500 hover:text-gray-400 font-mono">
+                            [DEBUG] Hide raw data
                           </summary>
-                          <div className="mt-1 p-2 border rounded text-[10px] overflow-x-auto bg-gray-900 border-gray-700">
+                          <div className="mt-1 p-2 border rounded text-[10px] overflow-x-auto bg-gray-900/50 border-gray-700">
                             <pre className="whitespace-pre-wrap text-gray-400">
                               {JSON.stringify(log.data, null, 2)}
                             </pre>

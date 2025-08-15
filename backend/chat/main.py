@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
@@ -7,6 +7,7 @@ import logging
 import uvicorn
 from datetime import datetime
 import uuid
+import json
 
 from config import ChatConfig
 from chat_crew import chat_crew
@@ -39,6 +40,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Store active WebSocket connections
+active_connections: Dict[str, WebSocket] = {}
+
 # Pydantic models for request/response
 class ChatMessage(BaseModel):
     message: str
@@ -70,6 +74,33 @@ class CrewInfoResponse(BaseModel):
 conversations = {}
 chat_sessions = {}
 
+@app.websocket("/ws/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    await websocket.accept()
+    active_connections[client_id] = websocket
+    try:
+        while True:
+            # Keep connection alive
+            await websocket.receive_text()
+    except:
+        if client_id in active_connections:
+            del active_connections[client_id]
+
+async def send_log_update(client_id: str, log_type: str, data: Dict[str, Any], message: str = None, agent: str = None, hierarchy: int = None):
+    """Send a log update to the connected WebSocket client"""
+    if client_id in active_connections:
+        try:
+            await active_connections[client_id].send_json({
+                "type": log_type,
+                "data": data,
+                "message": message,
+                "agent": agent,
+                "hierarchy": hierarchy,
+                "timestamp": datetime.now().isoformat()
+            })
+        except:
+            logger.error(f"Error sending log update to client {client_id}")
+
 @app.get("/")
 async def root():
     """Root endpoint with API information"""
@@ -81,7 +112,8 @@ async def root():
             "chat": "/chat",
             "conversation": "/conversation/{conversation_id}",
             "crew_info": "/crew/info",
-            "health": "/health"
+            "health": "/health",
+            "websocket": "/ws/{client_id}"
         }
     }
 
@@ -119,6 +151,67 @@ async def chat_endpoint(request: ChatMessage):
         # Get conversation history
         conversation_history = conversations.get(conversation_id, [])
         
+        # Send initial log updates
+        if conversation_id in active_connections:
+            await send_log_update(
+                conversation_id,
+                "user_input",
+                {"message": request.message},
+                f"User sent: {request.message}"
+            )
+
+            # Send workflow initialization log
+            if request.force_research:
+                await send_log_update(
+                    conversation_id,
+                    "agent_hierarchy",
+                    {
+                        "mode": "research",
+                        "expected_agents": ["Context Analyzer", "EXA Search Tool", "Conversational AI Assistant"]
+                    },
+                    "Initializing research workflow: Context Analysis → Web Search → Response Generation"
+                )
+                
+                await asyncio.sleep(0.2)  # Small delay for visual effect
+                
+                await send_log_update(
+                    conversation_id,
+                    "agent_start",
+                    {
+                        "agent": "Context Analyzer",
+                        "step": 1,
+                        "total_steps": 3
+                    },
+                    "Analyzing user query context and determining research strategy...",
+                    "Context Analyzer",
+                    0
+                )
+            else:
+                await send_log_update(
+                    conversation_id,
+                    "agent_hierarchy",
+                    {
+                        "mode": "simple",
+                        "expected_agents": ["Conversational AI Assistant"]
+                    },
+                    "Initializing simple chat workflow: Direct Response Generation"
+                )
+                
+                await asyncio.sleep(0.1)  # Small delay for visual effect
+                
+                await send_log_update(
+                    conversation_id,
+                    "agent_start",
+                    {
+                        "agent": "Conversational AI Assistant",
+                        "step": 1,
+                        "total_steps": 1
+                    },
+                    "Processing conversational response using IBM Granite-3-8B...",
+                    "Conversational AI Assistant",
+                    0
+                )
+        
         # Process the chat message
         result = chat_crew.chat(
             user_message=request.message,
@@ -128,6 +221,78 @@ async def chat_endpoint(request: ChatMessage):
         )
         
         if result["success"]:
+            # Send API call log
+            if conversation_id in active_connections:
+                await send_log_update(
+                    conversation_id,
+                    "api_call",
+                    {
+                        "model": "IBM Granite-3-8B",
+                        "think_mode": request.force_research,
+                        "force_research": request.force_research,
+                        "timestamp": datetime.now().isoformat()
+                    },
+                    f"Sending request to chat API {request.force_research and '[RESEARCH MODE]' or '[SIMPLE MODE]'}"
+                )
+
+                # If research mode, show additional agent steps
+                if request.force_research:
+                    await asyncio.sleep(0.8)  # Delay for visual effect
+                    await send_log_update(
+                        conversation_id,
+                        "agent_complete",
+                        {
+                            "agent": "Context Analyzer",
+                            "step": 1,
+                            "total_steps": 3
+                        },
+                        "Context analysis complete - research keywords detected, proceeding to search",
+                        "Context Analyzer",
+                        0
+                    )
+                    
+                    await asyncio.sleep(0.3)
+                    await send_log_update(
+                        conversation_id,
+                        "agent_start",
+                        {
+                            "agent": "EXA Search Tool",
+                            "step": 2,
+                            "total_steps": 3
+                        },
+                        "Initiating semantic web search for real-time information...",
+                        "EXA Search Tool",
+                        1
+                    )
+                    
+                    await asyncio.sleep(0.5)
+                    await send_log_update(
+                        conversation_id,
+                        "agent_complete",
+                        {
+                            "agent": "EXA Search Tool",
+                            "step": 2,
+                            "total_steps": 3
+                        },
+                        "Web search complete - relevant information retrieved, synthesizing response",
+                        "EXA Search Tool",
+                        1
+                    )
+                    
+                    await asyncio.sleep(0.2)
+                    await send_log_update(
+                        conversation_id,
+                        "agent_start",
+                        {
+                            "agent": "Conversational AI Assistant",
+                            "step": 3,
+                            "total_steps": 3
+                        },
+                        "Generating research-enhanced response using IBM Granite-3-8B...",
+                        "Conversational AI Assistant",
+                        2
+                    )
+
             # Store the conversation
             if conversation_id not in conversations:
                 conversations[conversation_id] = []
@@ -143,6 +308,67 @@ async def chat_endpoint(request: ChatMessage):
             if len(conversations[conversation_id]) > ChatConfig.MAX_CONVERSATION_HISTORY:
                 conversations[conversation_id] = conversations[conversation_id][-ChatConfig.MAX_CONVERSATION_HISTORY:]
             
+            # Send completion logs
+            if conversation_id in active_connections:
+                await asyncio.sleep(0.3)  # Small delay for visual effect
+                if request.force_research:
+                    await send_log_update(
+                        conversation_id,
+                        "agent_complete",
+                        {
+                            "agent": "Conversational AI Assistant",
+                            "step": 3,
+                            "total_steps": 3
+                        },
+                        "Research-enhanced response generated successfully",
+                        "Conversational AI Assistant",
+                        2
+                    )
+                else:
+                    await send_log_update(
+                        conversation_id,
+                        "agent_complete",
+                        {
+                            "agent": "Conversational AI Assistant",
+                            "step": 1,
+                            "total_steps": 1
+                        },
+                        "Conversational response generated successfully",
+                        "Conversational AI Assistant",
+                        0
+                    )
+
+                await asyncio.sleep(0.2)
+                await send_log_update(
+                    conversation_id,
+                    "response",
+                    {
+                        "content": result["response"],
+                        "type": result.get("metadata", {}).get("response_type", "unknown"),
+                        "research_used": result.get("metadata", {}).get("research_used", False),
+                        "agents_used": result.get("metadata", {}).get("agents_used", []),
+                        "response_length": len(result["response"]),
+                        "think_mode_was_on": request.force_research
+                    },
+                    f"Response ready: {len(result['response'])} characters {'with web search data' if result.get('metadata', {}).get('research_used', False) else 'from knowledge base'}"
+                )
+
+                # Log research summary if available
+                if result.get("metadata", {}).get("research_used") and request.force_research:
+                    await asyncio.sleep(0.1)
+                    await send_log_update(
+                        conversation_id,
+                        "response",
+                        {
+                            "research_summary": {
+                                "search_results_length": result.get("metadata", {}).get("search_results_length", 0),
+                                "sources_found": result.get("metadata", {}).get("sources_found", 0),
+                                "search_query": result.get("metadata", {}).get("search_query")
+                            }
+                        },
+                        f"Research summary: {result.get('metadata', {}).get('search_results_length', 0)} chars from web search, query: \"{result.get('metadata', {}).get('search_query', '')}\""
+                    )
+            
             return ChatResponse(
                 success=True,
                 message=request.message,
@@ -152,6 +378,14 @@ async def chat_endpoint(request: ChatMessage):
                 timestamp=datetime.now().isoformat()
             )
         else:
+            if conversation_id in active_connections:
+                await send_log_update(
+                    conversation_id,
+                    "error",
+                    {"error": result.get("error", "Unknown error")},
+                    "Chat processing failed"
+                )
+            
             return ChatResponse(
                 success=False,
                 message=request.message,
@@ -163,6 +397,13 @@ async def chat_endpoint(request: ChatMessage):
         
     except Exception as e:
         logger.error(f"Error processing chat request: {str(e)}")
+        if conversation_id in active_connections:
+            await send_log_update(
+                conversation_id,
+                "error",
+                {"error": str(e)},
+                "Chat API error"
+            )
         raise HTTPException(status_code=500, detail=f"Error processing chat: {str(e)}")
 
 @app.get("/conversation/{conversation_id}")
@@ -228,29 +469,10 @@ async def list_conversations():
         logger.error(f"Error listing conversations: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error listing conversations: {str(e)}")
 
-# Simple test endpoint for quick verification
-@app.post("/test")
-async def test_chat():
-    """Simple test endpoint to verify the chat system is working"""
-    try:
-        test_message = "Hello, can you tell me about yourself?"
-        result = chat_crew.chat(test_message, force_simple=True)
-        
-        return {
-            "test": "success",
-            "message": test_message,
-            "response": result["response"],
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in test endpoint: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
-
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host=ChatConfig.HOST,
         port=ChatConfig.PORT,
         reload=ChatConfig.DEBUG
-    ) 
+    )

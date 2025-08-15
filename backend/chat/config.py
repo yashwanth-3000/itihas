@@ -32,9 +32,8 @@ class ChatConfig:
             "IBM_API_KEY",
             "IBM_WATSONX_URL", 
             "IBM_PROJECT_ID",
-            "EXA_API_KEY",
-            "OPENAI_API_KEY"
-        ]
+            "EXA_API_KEY"
+        ]  # Removed OPENAI_API_KEY as it's optional
         
         missing_vars = []
         for var in required_vars:

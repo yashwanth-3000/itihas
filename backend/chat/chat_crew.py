@@ -35,7 +35,7 @@ class ChatCrew:
                 tasks=[],  # Tasks will be added dynamically
                 process=Process.sequential,
                 verbose=True,
-                memory=True,
+                memory=True,  # Enable memory for better context tracking
                 embedder={
                     "provider": "openai",
                     "config": {
@@ -50,7 +50,7 @@ class ChatCrew:
                 tasks=[],  # Tasks will be added dynamically
                 process=Process.sequential,
                 verbose=True,
-                memory=True,
+                memory=True,  # Enable memory for better context tracking
                 embedder={
                     "provider": "openai",
                     "config": {
@@ -81,7 +81,7 @@ class ChatCrew:
             logger.info(f"Processing chat message: {user_message[:100]}...")
             
             if force_simple:
-                return self._simple_chat(user_message)
+                return self._simple_chat(user_message, conversation_history)
             
             # Force research if explicitly requested
             if force_research:
@@ -99,7 +99,7 @@ class ChatCrew:
                 return self._chat_with_research(user_message, conversation_history, analysis_result)
             else:
                 logger.info(f"SIMPLE CHAT - No research needed for: {user_message[:50]}...")
-                return self._simple_chat(user_message)
+                return self._simple_chat(user_message, conversation_history)
                 
         except Exception as e:
             logger.error(f"Error processing chat: {str(e)}")
@@ -161,12 +161,12 @@ class ChatCrew:
         # Default to simple chat for most queries
         return False
     
-    def _simple_chat(self, user_message: str) -> Dict[str, Any]:
+    def _simple_chat(self, user_message: str, conversation_history: List[Dict] = None) -> Dict[str, Any]:
         """Handle simple chat without research"""
         try:
             logger.info("Processing as simple chat")
             
-            simple_task = create_simple_chat_task(user_message)
+            simple_task = create_simple_chat_task(user_message, conversation_history)
             self.simple_crew.tasks = [simple_task]
             
             result = self.simple_crew.kickoff()
