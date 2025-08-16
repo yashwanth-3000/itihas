@@ -8,8 +8,8 @@ import { Home, MessageCircle, User, Compass, Plus, Star, MapPin, Filter, X, Arro
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "../../../contexts/AuthContext";
+import { supabase } from "../../../lib/supabase";
 
 // Apple system font stack for a clean, native feel
 const APPLE_SYSTEM_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, system-ui, sans-serif";
