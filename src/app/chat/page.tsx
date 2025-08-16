@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback, Suspense } from "react";
-import { PromptInputBox } from "@/components/ui/ai-prompt-box";
-import { NavBar } from "@/components/ui/tubelight-navbar";
-import { ModelSelector } from "@/components/ui/model-selector";
-import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
+import { PromptInputBox } from '../../components/ui/ai-prompt-box';
+import { NavBar } from '../../components/ui/tubelight-navbar';
+import { ModelSelector } from '../../components/ui/model-selector';
+import { MarkdownRenderer } from '../../components/ui/markdown-renderer';
 import { Moon, Sun, Bot, User, ArrowLeft, Home, MessageCircle, Compass } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";

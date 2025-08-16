@@ -1,7 +1,7 @@
 "use client"
 
-import { Hero } from "@/components/ui/animated-hero";
-import { NavBar } from "@/components/ui/tubelight-navbar";
+import { Hero } from '../components/ui/animated-hero';
+import { NavBar } from '../components/ui/tubelight-navbar';
 import { Home, MessageCircle, User, Compass } from "lucide-react";
 
 export default function HomePage() {

@@ -1,11 +1,11 @@
 "use client";
-import { NavBar } from "@/components/ui/tubelight-navbar";
-import { AnimatedTestimonials, GoogleStreetView } from "@/components/ui";
+import { NavBar } from '../../../components/ui/tubelight-navbar';
+import { AnimatedTestimonials, GoogleStreetView } from '../../../components/ui';
 
 import { Home, MessageCircle, User, Compass, MapPin, ArrowRight, X } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, Suspense, useRef } from "react";
-import type { Testimonial } from "@/components/ui/animated-testimonials";
+import type { Testimonial } from '../../../components/ui/animated-testimonials';
 
 type Monument = {
   name: string;

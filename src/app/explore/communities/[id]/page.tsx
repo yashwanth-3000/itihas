@@ -1,6 +1,6 @@
 "use client";
 
-import { NavBar } from "@/components/ui/tubelight-navbar";
+import { NavBar } from '../../../../components/ui/tubelight-navbar';
 
 import { Home, MessageCircle, User, Compass, MapPin, Calendar, ArrowUp, ArrowDown, ArrowLeft, Send, Map, Navigation, BookOpen, Megaphone } from "lucide-react";
 import Link from "next/link";

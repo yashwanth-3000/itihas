@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { MoveRight, Info } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from '../../components/ui/button';
 import Link from "next/link";
 
 function Hero() {

@@ -11,7 +11,7 @@ import {
   Play,
 } from "lucide-react";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
-import { WorkflowPlan } from "@/lib/agent-workflow";
+import { WorkflowPlan } from '../../lib/agent-workflow';
 
 interface AgentPlanProps {
   workflowPlan?: WorkflowPlan | null;

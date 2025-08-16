@@ -6,7 +6,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { LucideIcon, User, LogIn, LogOut } from "lucide-react"
 import { cn } from "../../lib/utils"
-import { useAuth } from "@/contexts/AuthContext"
+import { useAuth } from '../../contexts/AuthContext'
 
 
 interface NavItem {

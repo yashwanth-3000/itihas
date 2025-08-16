@@ -1,9 +1,9 @@
 "use client";
 
-import { NavBar } from "@/components/ui/tubelight-navbar";
-import { PromptInputBox } from "@/components/ui/ai-prompt-box";
-import { AnimatedTestimonials } from "@/components/ui";
-import VaporizeTextCycle, { Tag as VaporizeTag } from "@/components/ui/vaporize-text-cycle";
+import { NavBar } from '../../components/ui/tubelight-navbar';
+import { PromptInputBox } from '../../components/ui/ai-prompt-box';
+import { AnimatedTestimonials } from '../../components/ui';
+import VaporizeTextCycle, { Tag as VaporizeTag } from '../../components/ui/vaporize-text-cycle';
 import { Home, MessageCircle, User, Compass } from "lucide-react";
 import { useState, useEffect } from "react";
 

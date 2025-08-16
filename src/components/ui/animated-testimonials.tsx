@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from '../../lib/utils';
 import { ArrowLeft, ArrowRight, MapPin, Camera } from "lucide-react";
 
 // Deterministic PRNG to avoid hydration mismatch from Math.random on server vs client

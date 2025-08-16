@@ -1,7 +1,7 @@
 "use client";
 
-import { NavBar } from "@/components/ui/tubelight-navbar";
-import { PlaceUploadForm } from "@/components/ui/place-upload-form";
+import { NavBar } from '../../../components/ui/tubelight-navbar';
+import { PlaceUploadForm } from '../../../components/ui/place-upload-form';
 import { useEffect } from "react";
 
 import { Home, MessageCircle, User, Compass, Plus, Star, MapPin, Filter, X, ArrowUp, ArrowDown, Search, ChevronUp, ChevronDown, CheckCircle, Flame, Award, Shield, Clock } from "lucide-react";
