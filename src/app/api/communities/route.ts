@@ -215,18 +215,38 @@ export async function POST(request: NextRequest) {
     }
 
     // Get authenticated user - require authentication for creating places
-    const user = await getAuthenticatedUser(request);
-    if (!user) {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    
+    const token = authHeader.substring(7);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
     const userId = user.id;
+
+    // Create an authenticated Supabase client for this user session
+    const authenticatedSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      }
+    );
 
     // Robust community handling - get or create a community for this place
     let communityId: string | undefined;
     
     try {
       // First, try to get an existing community
-      const { data: communities, error: communityError } = await supabase
+      const { data: communities, error: communityError } = await authenticatedSupabase
         .from('communities')
         .select('id, name')
         .eq('created_by', userId)
@@ -235,7 +255,7 @@ export async function POST(request: NextRequest) {
       if (communityError) {
         console.error('Error fetching user communities:', communityError);
         // If user communities fail, try to get any public community
-        const { data: publicCommunities, error: publicError } = await supabase
+        const { data: publicCommunities, error: publicError } = await authenticatedSupabase
           .from('communities')
           .select('id, name')
           .eq('is_private', false)
@@ -256,7 +276,7 @@ export async function POST(request: NextRequest) {
       // If no community found, create a default one
       if (!communityId) {
         console.log('Creating new default community...');
-        const { data: newCommunity, error: createError } = await supabase
+        const { data: newCommunity, error: createError } = await authenticatedSupabase
           .from('communities')
           .insert({
             name: 'Community Places',
@@ -274,7 +294,7 @@ export async function POST(request: NextRequest) {
           // Enhanced error handling for community creation
           if (createError.code === '23505') { // Unique constraint violation
             // Try to find an existing community again
-            const { data: retryComm } = await supabase
+            const { data: retryComm } = await authenticatedSupabase
               .from('communities')
               .select('id')
               .limit(1);
@@ -345,7 +365,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Insert the new place
-    const { data: newPlace, error: insertError } = await supabase
+    const { data: newPlace, error: insertError } = await authenticatedSupabase
       .from('places')
       .insert(placeData)
       .select(`
