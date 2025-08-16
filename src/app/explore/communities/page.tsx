@@ -192,8 +192,16 @@ export default function CommunitiesPage() {
 
   const filterDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Helper function for authenticated API calls with token refresh
+  // Helper function for authenticated API calls with token refresh and timeout
   const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}, retryCount = 0): Promise<Response> => {
+    const timeoutDuration = url.includes('/api/upload') ? 60000 : 30000; // 60s for uploads, 30s for others
+    
+    // Create abort controller for timeout handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeoutDuration);
+
     try {
       const session = await supabase.auth.getSession();
       let token = session.data.session?.access_token;
@@ -231,7 +239,11 @@ export default function CommunitiesPage() {
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: controller.signal, // Add abort signal for timeout
       });
+
+      // Clear timeout on successful response
+      clearTimeout(timeoutId);
 
       // If we get a 401 and haven't retried yet, try refreshing token once more
       if (response.status === 401 && retryCount === 0) {
@@ -241,14 +253,23 @@ export default function CommunitiesPage() {
 
       return response;
     } catch (error) {
+      // Clear timeout in case of error
+      clearTimeout(timeoutId);
+      
       console.error('makeAuthenticatedRequest error:', error);
       
-      // If authentication failed, update UI state
-      if (error instanceof Error && error.message.includes('Authentication')) {
-        setToast({ 
-          message: 'Authentication expired. Please sign in again.', 
-          type: 'error' 
-        });
+      // Handle different types of errors
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error(`Request timeout after ${timeoutDuration / 1000}s. Please try again.`);
+        }
+        
+        if (error.message.includes('Authentication')) {
+          setToast({ 
+            message: 'Authentication expired. Please sign in again.', 
+            type: 'error' 
+          });
+        }
       }
       
       throw error;
@@ -448,10 +469,42 @@ export default function CommunitiesPage() {
         userId: user.id
       });
 
-      const response = await makeAuthenticatedRequest('/api/communities', {
-        method: 'POST',
-        body: JSON.stringify(placeData),
-      });
+      // Submit place data with retry logic for network errors
+      let response: Response | undefined;
+      let retryCount = 0;
+      const maxRetries = 2;
+
+      while (retryCount <= maxRetries) {
+        try {
+          response = await makeAuthenticatedRequest('/api/communities', {
+            method: 'POST',
+            body: JSON.stringify(placeData),
+          });
+          break; // Success, exit retry loop
+        } catch (error) {
+          retryCount++;
+          if (retryCount > maxRetries) {
+            throw error; // Re-throw if max retries exceeded
+          }
+          
+          // Only retry for network/timeout errors
+          if (error instanceof Error && 
+              (error.message.includes('timeout') || 
+               error.message.includes('Failed to fetch') || 
+               error.message.includes('NetworkError'))) {
+            console.log(`Network error, retrying... (${retryCount}/${maxRetries})`);
+            setToast({ message: `Retrying... (${retryCount}/${maxRetries})`, type: 'success' });
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Progressive delay
+            continue;
+          } else {
+            throw error; // Don't retry for other errors
+          }
+        }
+      }
+
+      if (!response) {
+        throw new Error('No response received after all retries');
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -479,12 +532,16 @@ export default function CommunitiesPage() {
       if (error instanceof Error) {
         if (error.message.includes('Authentication')) {
           errorMessage = 'Session expired. Please sign in again.';
+        } else if (error.message.includes('timeout')) {
+          errorMessage = 'Request timed out. The server might be busy. Please try again.';
         } else if (error.message.includes('HTTP 400')) {
           errorMessage = 'Invalid data provided. Please check all fields.';
         } else if (error.message.includes('HTTP 500')) {
           errorMessage = 'Server error. Please try again later.';
-        } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = 'Network error. Please check your connection.';
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else if (error.message.includes('AbortError')) {
+          errorMessage = 'Request was cancelled. Please try again.';
         } else {
           errorMessage = `Error: ${error.message}`;
         }

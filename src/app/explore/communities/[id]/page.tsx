@@ -108,9 +108,17 @@ export default function PlaceDetailPage() {
 
   // Helper function for authenticated API calls with token refresh
   const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}, retryCount = 0): Promise<Response> => {
+    const timeoutDuration = 30000; // 30 seconds timeout
+    
+    // Create abort controller for timeout handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeoutDuration);
+
     try {
-          const session = await supabase.auth.getSession();
-    let token = session.data.session?.access_token;
+      const session = await supabase.auth.getSession();
+      let token = session.data.session?.access_token;
       
       // If no token, try to refresh the session
       if (!token && retryCount === 0) {
@@ -145,7 +153,11 @@ export default function PlaceDetailPage() {
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: controller.signal, // Add abort signal for timeout
       });
+
+      // Clear timeout on successful response
+      clearTimeout(timeoutId);
 
       // If we get a 401 and haven't retried yet, try refreshing token once more
       if (response.status === 401 && retryCount === 0) {
@@ -155,14 +167,23 @@ export default function PlaceDetailPage() {
 
       return response;
     } catch (error) {
+      // Clear timeout in case of error
+      clearTimeout(timeoutId);
+      
       console.error('makeAuthenticatedRequest error:', error);
       
-      // If authentication failed, update UI state
-      if (error instanceof Error && error.message.includes('Authentication')) {
-        setToast({ 
-          message: 'Authentication expired. Please sign in again.', 
-          type: 'error' 
-        });
+      // Handle different types of errors
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error(`Request timeout after ${timeoutDuration / 1000}s. Please try again.`);
+        }
+        
+        if (error.message.includes('Authentication')) {
+          setToast({ 
+            message: 'Authentication expired. Please sign in again.', 
+            type: 'error' 
+          });
+        }
       }
       
       throw error;
