@@ -109,8 +109,8 @@ export default function PlaceDetailPage() {
   // Helper function for authenticated API calls with token refresh
   const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}, retryCount = 0): Promise<Response> => {
     try {
-      let session = await supabase.auth.getSession();
-      let token = session.data.session?.access_token;
+          const session = await supabase.auth.getSession();
+    let token = session.data.session?.access_token;
       
       // If no token, try to refresh the session
       if (!token && retryCount === 0) {
