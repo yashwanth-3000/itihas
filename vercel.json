@@ -1,0 +1,16 @@
+{
+  "functions": {
+    "src/app/chat/page.tsx": {
+      "maxDuration": 59
+    },
+    "src/app/explore/results/page.tsx": {
+      "maxDuration": 59
+    },
+    "src/app/**/*.tsx": {
+      "maxDuration": 59
+    },
+    "src/app/**/*.ts": {
+      "maxDuration": 59
+    }
+  }
+}
