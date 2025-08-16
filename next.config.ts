@@ -2,25 +2,19 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   webpack: (config, { isServer }) => {
-    // Optimize for Vercel deployment
+    // Disable webpack 5 persistent caching for Vercel compatibility
+    config.cache = false;
+    
+    // Simplify optimization for stable builds
     config.optimization = {
       ...config.optimization,
       moduleIds: 'deterministic',
+      minimize: !isServer,
     };
     
-    // Reduce bundle splitting for simpler builds
-    if (!isServer) {
-      config.optimization.splitChunks = {
-        ...config.optimization.splitChunks,
-        chunks: 'all',
-        cacheGroups: {
-          default: {
-            minChunks: 1,
-            priority: -20,
-            reuseExistingChunk: true,
-          },
-        },
-      };
+    // Disable problematic optimizations that cause hash errors
+    if (config.optimization?.splitChunks) {
+      config.optimization.splitChunks = false;
     }
     
     return config;
