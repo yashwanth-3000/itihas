@@ -106,29 +106,67 @@ export default function PlaceDetailPage() {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
-  // Helper function for authenticated API calls
-  const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}) => {
-    const session = await supabase.auth.getSession();
-    const token = session.data.session?.access_token;
-    
-    if (!token) {
-      throw new Error('No authentication token available');
+  // Helper function for authenticated API calls with token refresh
+  const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}, retryCount = 0): Promise<Response> => {
+    try {
+      let session = await supabase.auth.getSession();
+      let token = session.data.session?.access_token;
+      
+      // If no token, try to refresh the session
+      if (!token && retryCount === 0) {
+        console.log('No token found, attempting to refresh session...');
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (refreshError) {
+          console.error('Session refresh failed:', refreshError);
+          throw new Error('Authentication expired. Please sign in again.');
+        }
+        
+        if (refreshData.session?.access_token) {
+          token = refreshData.session.access_token;
+          console.log('Session refreshed successfully');
+        }
+      }
+      
+      if (!token) {
+        throw new Error('Authentication required. Please sign in.');
+      }
+
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${token}`,
+        ...(options.headers as Record<string, string> || {}),
+      };
+
+      // Only add Content-Type if not FormData (browser sets it automatically for FormData)
+      if (!(options.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+      }
+
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
+
+      // If we get a 401 and haven't retried yet, try refreshing token once more
+      if (response.status === 401 && retryCount === 0) {
+        console.log('Received 401, attempting token refresh and retry...');
+        return makeAuthenticatedRequest(url, options, 1);
+      }
+
+      return response;
+    } catch (error) {
+      console.error('makeAuthenticatedRequest error:', error);
+      
+      // If authentication failed, update UI state
+      if (error instanceof Error && error.message.includes('Authentication')) {
+        setToast({ 
+          message: 'Authentication expired. Please sign in again.', 
+          type: 'error' 
+        });
+      }
+      
+      throw error;
     }
-
-    const headers: Record<string, string> = {
-      'Authorization': `Bearer ${token}`,
-      ...(options.headers as Record<string, string> || {}),
-    };
-
-    // Only add Content-Type if not FormData (browser sets it automatically for FormData)
-    if (!(options.body instanceof FormData)) {
-      headers['Content-Type'] = 'application/json';
-    }
-
-    return fetch(url, {
-      ...options,
-      headers,
-    });
   };
 
   // Auto-clear toast after 3 seconds

@@ -31,21 +31,19 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS
-origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
-
-# Add Railway production URLs if deployed
-if ChatConfig.RAILWAY_ENVIRONMENT:
-    origins.extend([
-        "https://*.railway.app",
-        "https://*.up.railway.app"
-    ])
+# Configure CORS - Allow specific origins and all for compatibility
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000", 
+    "https://ibm-three.vercel.app",  # Original Vercel deployment
+    "https://itihas-ibm.vercel.app",  # New Vercel deployment
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=["*"],  # Allow all origins for maximum compatibility
+    allow_credentials=False,  # Must be False when allow_origins is ["*"]
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

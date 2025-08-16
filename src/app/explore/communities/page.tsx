@@ -175,6 +175,7 @@ export default function CommunitiesPage() {
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<CommunityPlace | null>(null);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+  const [isSubmittingPlace, setIsSubmittingPlace] = useState(false);
 
   // Auto-clear toast after 3 seconds
   useEffect(() => {
@@ -191,29 +192,67 @@ export default function CommunitiesPage() {
 
   const filterDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Helper function for authenticated API calls
-  const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}) => {
-    const session = await supabase.auth.getSession();
-    const token = session.data.session?.access_token;
-    
-    if (!token) {
-      throw new Error('No authentication token available');
+  // Helper function for authenticated API calls with token refresh
+  const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}, retryCount = 0): Promise<Response> => {
+    try {
+      let session = await supabase.auth.getSession();
+      let token = session.data.session?.access_token;
+      
+      // If no token, try to refresh the session
+      if (!token && retryCount === 0) {
+        console.log('No token found, attempting to refresh session...');
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (refreshError) {
+          console.error('Session refresh failed:', refreshError);
+          throw new Error('Authentication expired. Please sign in again.');
+        }
+        
+        if (refreshData.session?.access_token) {
+          token = refreshData.session.access_token;
+          console.log('Session refreshed successfully');
+        }
+      }
+      
+      if (!token) {
+        throw new Error('Authentication required. Please sign in.');
+      }
+
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${token}`,
+        ...(options.headers as Record<string, string> || {}),
+      };
+
+      // Only add Content-Type if not FormData (browser sets it automatically for FormData)
+      if (!(options.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+      }
+
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
+
+      // If we get a 401 and haven't retried yet, try refreshing token once more
+      if (response.status === 401 && retryCount === 0) {
+        console.log('Received 401, attempting token refresh and retry...');
+        return makeAuthenticatedRequest(url, options, 1);
+      }
+
+      return response;
+    } catch (error) {
+      console.error('makeAuthenticatedRequest error:', error);
+      
+      // If authentication failed, update UI state
+      if (error instanceof Error && error.message.includes('Authentication')) {
+        setToast({ 
+          message: 'Authentication expired. Please sign in again.', 
+          type: 'error' 
+        });
+      }
+      
+      throw error;
     }
-
-    const headers: Record<string, string> = {
-      'Authorization': `Bearer ${token}`,
-      ...(options.headers as Record<string, string> || {}),
-    };
-
-    // Only add Content-Type if not FormData (browser sets it automatically for FormData)
-    if (!(options.body instanceof FormData)) {
-      headers['Content-Type'] = 'application/json';
-    }
-
-    return fetch(url, {
-      ...options,
-      headers,
-    });
   };
 
   const navItems = [
@@ -232,12 +271,23 @@ export default function CommunitiesPage() {
     { id: 'spiritual', name: 'Spiritual', icon: '🕉️' }
   ];
 
-  // Fetch places from API - ONLY SUPABASE DATA
-  const fetchPlaces = async () => {
+  // Fetch places from API - ONLY SUPABASE DATA with enhanced error handling
+  const fetchPlaces = async (retryCount = 0) => {
     try {
       setLoading(true);
+      console.log(`Fetching places... (category: ${filterCategory}, retry: ${retryCount})`);
       
-      const response = await fetch(`/api/communities?category=${filterCategory}`);
+      const response = await fetch(`/api/communities?category=${filterCategory}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const result = await response.json();
       
       if (result.success) {
@@ -247,12 +297,34 @@ export default function CommunitiesPage() {
           dateAdded: new Date(place.dateAdded)
         }));
         setPlaces(placesWithDates);
+        console.log(`Successfully loaded ${placesWithDates.length} places`);
       } else {
-        console.error('Failed to fetch places:', result.error);
-        setPlaces([]); // Show empty state if API fails
+        console.error('API returned failure:', result.error);
+        throw new Error(result.error || 'Failed to fetch places');
       }
     } catch (error) {
       console.error('Error fetching places:', error);
+      
+      // Retry logic for network errors
+      if (retryCount < 2 && error instanceof Error && 
+          (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+        console.log(`Retrying fetchPlaces (attempt ${retryCount + 1})`);
+        setTimeout(() => fetchPlaces(retryCount + 1), 1000 * (retryCount + 1));
+        return;
+      }
+      
+      let errorMessage = 'Failed to load places';
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          errorMessage = 'Network error. Please check your connection.';
+        } else if (error.message.includes('HTTP 500')) {
+          errorMessage = 'Server error. Please try again later.';
+        } else {
+          errorMessage = `Error loading places: ${error.message}`;
+        }
+      }
+      
+      setToast({ message: errorMessage, type: 'error' });
       setPlaces([]); // Show empty state if API fails
     } finally {
       setLoading(false);
@@ -272,6 +344,33 @@ export default function CommunitiesPage() {
     return matchesText && matchesCategory;
   });
 
+  // Validation function for place data
+  const validatePlaceData = (formData: any): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    
+    if (!formData.name?.trim()) {
+      errors.push('Place name is required');
+    } else if (formData.name.trim().length < 2) {
+      errors.push('Place name must be at least 2 characters');
+    }
+    
+    if (!formData.significance?.trim()) {
+      errors.push('Place significance/description is required');
+    } else if (formData.significance.trim().length < 10) {
+      errors.push('Place description must be at least 10 characters');
+    }
+    
+    if (!formData.location?.address?.trim()) {
+      errors.push('Location address is required');
+    }
+    
+    if (!formData.category) {
+      errors.push('Category is required');
+    }
+    
+    return { isValid: errors.length === 0, errors };
+  };
+
   const handlePlaceSubmit = async (formData: any) => {
     // Check if user is authenticated
     if (!user) {
@@ -279,11 +378,25 @@ export default function CommunitiesPage() {
       return;
     }
 
+    // Validate form data
+    const validation = validatePlaceData(formData);
+    if (!validation.isValid) {
+      setToast({ 
+        message: `Validation failed: ${validation.errors.join(', ')}`, 
+        type: 'error' 
+      });
+      return;
+    }
+
+    setIsSubmittingPlace(true);
+    setToast({ message: 'Saving place...', type: 'success' });
+
     try {
       let imageUrls: string[] = [];
       
       // Upload images to Supabase Storage if any
       if (formData.images && formData.images.length > 0) {
+        console.log('Uploading images...', formData.images.length);
         const uploadFormData = new FormData();
         formData.images.forEach((file: File) => {
           uploadFormData.append('files', file);
@@ -294,13 +407,18 @@ export default function CommunitiesPage() {
           body: uploadFormData,
         });
 
+        if (!uploadResponse.ok) {
+          throw new Error(`Image upload failed: ${uploadResponse.status}`);
+        }
+
         const uploadResult = await uploadResponse.json();
         
         if (uploadResult.success) {
           imageUrls = uploadResult.data.urls;
+          console.log('Images uploaded successfully:', imageUrls.length);
         } else {
           console.error('Failed to upload images:', uploadResult.error);
-          // Use fallback image if upload fails
+          setToast({ message: 'Image upload failed, using default image', type: 'error' });
           imageUrls = ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'];
         }
       } else {
@@ -308,58 +426,84 @@ export default function CommunitiesPage() {
         imageUrls = ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'];
       }
 
+      // Prepare place data with validation
       const placeData = {
-        name: formData.name,
-        significance: formData.significance,
-        facts: formData.facts.filter((fact: string) => fact.trim()),
-        location: formData.location,
+        name: formData.name.trim(),
+        significance: formData.significance.trim(),
+        facts: formData.facts?.filter((fact: string) => fact?.trim()) || [],
+        location: {
+          address: formData.location.address.trim(),
+          lat: formData.location.lat,
+          lng: formData.location.lng
+        },
         images: imageUrls,
-        rating: formData.rating,
+        rating: parseFloat(formData.rating) || 5.0,
         category: formData.category
       };
+
+      console.log('Submitting place data:', {
+        name: placeData.name,
+        category: placeData.category,
+        hasImages: placeData.images.length > 0,
+        userId: user.id
+      });
 
       const response = await makeAuthenticatedRequest('/api/communities', {
         method: 'POST',
         body: JSON.stringify(placeData),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
       const result = await response.json();
       
       if (result.success) {
+        console.log('Place created successfully:', result.data.id);
         // Refresh the places list
-        fetchPlaces();
+        await fetchPlaces();
         setToast({ message: 'Place added successfully!', type: 'success' });
         setShowUploadForm(false);
+        // Form will be reset by the component itself
       } else {
-        console.error('Failed to submit place:', result.error);
-        setToast({ message: `Failed to add place: ${result.error}`, type: 'error' });
-        // Add to local state as fallback
-        const newPlace: CommunityPlace = {
-          ...placeData,
-          id: Date.now().toString(),
-          saves: 0,
-          views: 0,
-          upvotes: 0,
-          downvotes: 0,
-          userVote: null,
-          userSaved: false,
-          mapsUrl: placeData.location.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeData.location.address)}` : undefined,
-          hasStreetView: false,
-          author: {
-            name: user?.email?.split('@')[0] || 'You',
-            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-            verified: false
-          },
-          dateAdded: new Date(),
-          images: formData.images.map((file: File) => URL.createObjectURL(file)),
-          status: 'published',
-          verificationLevel: 'unverified'
-        };
-        setPlaces(prev => [newPlace, ...prev]);
+        console.error('API returned failure:', result.error);
+        throw new Error(result.error || 'Failed to create place');
       }
     } catch (error) {
       console.error('Error submitting place:', error);
-      setToast({ message: 'Error submitting place. Please try again.', type: 'error' });
+      
+      let errorMessage = 'Error submitting place. Please try again.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Authentication')) {
+          errorMessage = 'Session expired. Please sign in again.';
+        } else if (error.message.includes('HTTP 400')) {
+          errorMessage = 'Invalid data provided. Please check all fields.';
+        } else if (error.message.includes('HTTP 500')) {
+          errorMessage = 'Server error. Please try again later.';
+        } else if (error.message.includes('Failed to fetch')) {
+          errorMessage = 'Network error. Please check your connection.';
+        } else {
+          errorMessage = `Error: ${error.message}`;
+        }
+      }
+      
+      setToast({ message: errorMessage, type: 'error' });
+      
+      // Log detailed error for debugging
+      console.error('Detailed error information:', {
+        error,
+        user: user?.id,
+        formData: {
+          name: formData.name,
+          category: formData.category,
+          hasAddress: !!formData.location?.address
+        }
+      });
+    } finally {
+      setIsSubmittingPlace(false);
     }
   };
 
@@ -772,11 +916,12 @@ export default function CommunitiesPage() {
       </div>
 
       {/* Upload Form */}
-      <PlaceUploadForm 
-        isOpen={showUploadForm}
-        onClose={() => setShowUploadForm(false)}
-        onSubmit={handlePlaceSubmit}
-      />
+              <PlaceUploadForm
+          isOpen={showUploadForm}
+          onClose={() => setShowUploadForm(false)}
+          onSubmit={handlePlaceSubmit}
+          isSubmitting={isSubmittingPlace}
+        />
 
       {/* Place Detail Modal */}
       <AnimatePresence>

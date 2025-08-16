@@ -182,10 +182,34 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    // Validate required fields
-    if (!body.name || !body.significance || !body.location?.address) {
+    // Enhanced validation for required fields
+    const validationErrors = [];
+    
+    if (!body.name?.trim()) {
+      validationErrors.push('Place name is required');
+    } else if (body.name.trim().length < 2) {
+      validationErrors.push('Place name must be at least 2 characters');
+    }
+    
+    if (!body.significance?.trim()) {
+      validationErrors.push('Place significance/description is required');
+    } else if (body.significance.trim().length < 10) {
+      validationErrors.push('Place description must be at least 10 characters');
+    }
+    
+    if (!body.location?.address?.trim()) {
+      validationErrors.push('Location address is required');
+    }
+    
+    if (!body.category) {
+      validationErrors.push('Category is required');
+    } else if (!['cultural', 'natural', 'historical', 'spiritual'].includes(body.category)) {
+      validationErrors.push('Invalid category. Must be: cultural, natural, historical, or spiritual');
+    }
+    
+    if (validationErrors.length > 0) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields: name, significance, and location.address are required' },
+        { success: false, error: `Validation failed: ${validationErrors.join(', ')}` },
         { status: 400 }
       );
     }
@@ -197,59 +221,111 @@ export async function POST(request: NextRequest) {
     }
     const userId = user.id;
 
-    // First, we need to get or create a community for this place
-    // For now, let's get the first available community or create a default one
-    const { data: communities, error: communityError } = await supabase
-      .from('communities')
-      .select('id')
-      .limit(1);
+    // Robust community handling - get or create a community for this place
+    let communityId: string | undefined;
+    
+    try {
+      // First, try to get an existing community
+      const { data: communities, error: communityError } = await supabase
+        .from('communities')
+        .select('id, name')
+        .eq('created_by', userId)
+        .limit(1);
 
-    if (communityError) {
-      console.error('Error fetching communities:', communityError);
+      if (communityError) {
+        console.error('Error fetching user communities:', communityError);
+        // If user communities fail, try to get any public community
+        const { data: publicCommunities, error: publicError } = await supabase
+          .from('communities')
+          .select('id, name')
+          .eq('is_private', false)
+          .limit(1);
+          
+        if (!publicError && publicCommunities && publicCommunities.length > 0) {
+          communityId = publicCommunities[0].id;
+          console.log(`Using existing public community: ${publicCommunities[0].name}`);
+        } else {
+          // If everything fails, we'll create a new community below
+          console.log('No existing communities found, will create new one');
+        }
+      } else if (communities && communities.length > 0) {
+        communityId = communities[0].id;
+        console.log(`Using existing user community: ${communities[0].name}`);
+      }
+
+      // If no community found, create a default one
+      if (!communityId) {
+        console.log('Creating new default community...');
+        const { data: newCommunity, error: createError } = await supabase
+          .from('communities')
+          .insert({
+            name: 'Community Places',
+            description: 'A collection of community-shared places',
+            category: body.category || 'cultural',
+            created_by: userId,
+            is_private: false
+          })
+          .select('id, name')
+          .single();
+
+        if (createError) {
+          console.error('Error creating default community:', createError);
+          
+          // Enhanced error handling for community creation
+          if (createError.code === '23505') { // Unique constraint violation
+            // Try to find an existing community again
+            const { data: retryComm } = await supabase
+              .from('communities')
+              .select('id')
+              .limit(1);
+            
+            if (retryComm && retryComm.length > 0) {
+              communityId = retryComm[0].id;
+              console.log('Used existing community after unique constraint error');
+            } else {
+              return NextResponse.json(
+                { success: false, error: 'Failed to create or find community' },
+                { status: 500 }
+              );
+            }
+          } else {
+            return NextResponse.json(
+              { success: false, error: `Community creation failed: ${createError.message}` },
+              { status: 500 }
+            );
+          }
+        } else if (newCommunity) {
+          communityId = newCommunity.id;
+          console.log(`Created new community: ${newCommunity.name} (${communityId})`);
+        } else {
+          return NextResponse.json(
+            { success: false, error: 'Community creation returned no data' },
+            { status: 500 }
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Unexpected error in community handling:', error);
       return NextResponse.json(
-        { success: false, error: 'Failed to fetch communities' },
+        { success: false, error: 'Failed to handle community creation' },
         { status: 500 }
       );
     }
 
-    let communityId: string;
-
-    if (!communities || communities.length === 0) {
-      // Create a default community
-      const { data: newCommunity, error: createError } = await supabase
-        .from('communities')
-        .insert({
-          name: 'Community Places',
-          description: 'A collection of community-shared places',
-          category: body.category || 'cultural',
-          created_by: userId
-        })
-        .select('id')
-        .single();
-
-      if (createError || !newCommunity) {
-        console.error('Error creating default community:', createError);
-        return NextResponse.json(
-          { success: false, error: 'Failed to create community' },
-          { status: 500 }
-        );
-      }
-      
-      communityId = newCommunity.id;
-    } else {
-      communityId = communities[0].id;
-    }
-
-    // Prepare place data for database
+    // Prepare and sanitize place data for database
     const placeData = {
       community_id: communityId,
-      name: body.name,
-      description: body.significance,
-      address: body.location.address,
-      images: body.images || ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'],
-      category: body.category || 'cultural',
-      tags: body.facts?.filter((fact: string) => fact?.trim()) || [],
-      rating: parseFloat(body.rating || '5'),
+      name: body.name.trim(),
+      description: body.significance.trim(),
+      address: body.location.address.trim(),
+      images: Array.isArray(body.images) && body.images.length > 0 
+        ? body.images.filter((img: string) => img?.trim()) 
+        : ['https://images.unsplash.com/photo-1539650116574-75c0c6d73f6e?w=800'],
+      category: body.category,
+      tags: Array.isArray(body.facts) 
+        ? body.facts.filter((fact: string) => fact?.trim()).map((fact: string) => fact.trim())
+        : [],
+      rating: Math.min(5, Math.max(1, parseFloat(body.rating) || 5)), // Clamp between 1-5
       upvote_count: 0,
       downvote_count: 0,
       comment_count: 0,
@@ -258,6 +334,15 @@ export async function POST(request: NextRequest) {
       featured: false,
       created_by: userId
     };
+    
+    console.log('Sanitized place data:', {
+      name: placeData.name,
+      category: placeData.category,
+      communityId,
+      userId,
+      imageCount: placeData.images.length,
+      tagCount: placeData.tags.length
+    });
 
     // Insert the new place
     const { data: newPlace, error: insertError } = await supabase

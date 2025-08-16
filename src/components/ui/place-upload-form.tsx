@@ -26,9 +26,30 @@ interface PlaceUploadFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: PlaceFormData) => void;
+  isSubmitting?: boolean;
 }
 
-export function PlaceUploadForm({ isOpen, onClose, onSubmit }: PlaceUploadFormProps) {
+export function PlaceUploadForm({ isOpen, onClose, onSubmit, isSubmitting = false }: PlaceUploadFormProps) {
+  
+  // Reset form when it closes
+  React.useEffect(() => {
+    if (!isOpen) {
+      setFormData({
+        name: '',
+        significance: '',
+        facts: [''],
+        location: { address: '' },
+        category: 'cultural',
+        images: [],
+        rating: 8,
+        mapsUrl: '',
+        streetViewUrl: '',
+        hasStreetView: false
+      });
+      setCurrentStep(1);
+      setValidationErrors([]);
+    }
+  }, [isOpen]);
   const [formData, setFormData] = useState<PlaceFormData>({
     name: '',
     significance: '',
@@ -44,6 +65,7 @@ export function PlaceUploadForm({ isOpen, onClose, onSubmit }: PlaceUploadFormPr
 
   const [dragActive, setDragActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categories = [
@@ -130,26 +152,45 @@ export function PlaceUploadForm({ isOpen, onClose, onSubmit }: PlaceUploadFormPr
     }));
   };
 
+  const validateForm = (): boolean => {
+    const errors: string[] = [];
+    
+    if (!formData.name?.trim()) {
+      errors.push('Place name is required');
+    } else if (formData.name.trim().length < 2) {
+      errors.push('Place name must be at least 2 characters');
+    }
+    
+    if (!formData.significance?.trim()) {
+      errors.push('Place significance/description is required');
+    } else if (formData.significance.trim().length < 10) {
+      errors.push('Place description must be at least 10 characters');
+    }
+    
+    if (!formData.location?.address?.trim()) {
+      errors.push('Location address is required');
+    }
+    
+    if (!formData.category) {
+      errors.push('Category is required');
+    }
+    
+    setValidationErrors(errors);
+    return errors.length === 0;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.name && formData.significance && formData.location.address) {
-      onSubmit(formData);
-      onClose();
-      // Reset form
-      setFormData({
-        name: '',
-        significance: '',
-        facts: [''],
-        location: { address: '' },
-        category: 'cultural',
-        images: [],
-        rating: 8,
-        mapsUrl: '',
-        streetViewUrl: '',
-        hasStreetView: false
-      });
-      setCurrentStep(1);
+    
+    if (!validateForm()) {
+      return;
     }
+    
+    if (isSubmitting) {
+      return; // Prevent double submission
+    }
+    
+    onSubmit(formData);
   };
 
   const getCurrentLocation = () => {
@@ -557,12 +598,25 @@ export function PlaceUploadForm({ isOpen, onClose, onSubmit }: PlaceUploadFormPr
               </motion.div>
             )}
 
+            {/* Validation Errors */}
+            {validationErrors.length > 0 && (
+              <div className="mt-4 p-4 bg-red-500/20 border border-red-500/30 rounded-xl">
+                <h4 className="text-red-400 font-medium mb-2">Please fix the following errors:</h4>
+                <ul className="text-red-300 text-sm space-y-1">
+                  {validationErrors.map((error, index) => (
+                    <li key={index}>• {error}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Navigation Buttons */}
             <div className="flex justify-between items-center mt-8 pt-6 border-t border-white/20">
               <button
                 type="button"
                 onClick={() => currentStep > 1 ? setCurrentStep(currentStep - 1) : onClose()}
-                className="bg-white/10 text-white px-6 py-3 rounded-xl font-medium hover:bg-white/20 transition-all duration-200"
+                disabled={isSubmitting}
+                className="bg-white/10 text-white px-6 py-3 rounded-xl font-medium hover:bg-white/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {currentStep === 1 ? 'Cancel' : 'Previous'}
               </button>
@@ -571,7 +625,7 @@ export function PlaceUploadForm({ isOpen, onClose, onSubmit }: PlaceUploadFormPr
                 <button
                   type="button"
                   onClick={() => setCurrentStep(currentStep + 1)}
-                  disabled={!isStepComplete(currentStep)}
+                  disabled={!isStepComplete(currentStep) || isSubmitting}
                   className="bg-white text-black px-6 py-3 rounded-xl font-medium hover:bg-white/90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
@@ -579,10 +633,17 @@ export function PlaceUploadForm({ isOpen, onClose, onSubmit }: PlaceUploadFormPr
               ) : (
                 <button
                   type="submit"
-                  disabled={!isStepComplete(4)}
-                  className="bg-green-500 text-white px-8 py-3 rounded-xl font-medium hover:bg-green-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!isStepComplete(4) || isSubmitting}
+                  className="bg-green-500 text-white px-8 py-3 rounded-xl font-medium hover:bg-green-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  Share Place
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    'Share Place'
+                  )}
                 </button>
               )}
             </div>
