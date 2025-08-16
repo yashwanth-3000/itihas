@@ -19,8 +19,9 @@ class ExploreConfig:
 
     # Application Settings
     DEBUG = os.getenv("DEBUG", "False").lower() == "true"
-    HOST = os.getenv("EXPLORE_HOST", os.getenv("HOST", "0.0.0.0"))
-    PORT = int(os.getenv("EXPLORE_PORT", 8002))  # Different port for explore API
+    HOST = os.getenv("HOST", "0.0.0.0")
+    PORT = int(os.getenv("PORT", 8002))  # Railway will override this
+    RAILWAY_ENVIRONMENT = os.getenv("RAILWAY_ENVIRONMENT_NAME")  # Railway deployment detection
 
     # LLM defaults
     DEFAULT_TEMPERATURE = float(os.getenv("EXPLORE_TEMPERATURE", os.getenv("DEFAULT_TEMPERATURE", "0.3")))

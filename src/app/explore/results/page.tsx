@@ -280,10 +280,10 @@ function ExploreResultsContent() {
       setApiError(null);
       
       try {
-        console.log("Making API call to:", "http://localhost:8002/explore");
+        console.log("Making API call to:", "https://itihas-explore-production.up.railway.app/explore");
         console.log("Query:", searchTerm);
         
-        const res = await fetch("http://localhost:8002/explore", {
+        const res = await fetch("https://itihas-explore-production.up.railway.app/explore", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: searchTerm }),
@@ -439,6 +439,14 @@ function ExploreResultsContent() {
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-400"></span>
                     </span>
                     <span className="text-sm">Finding places and compiling details…</span>
+                  </div>
+                  
+                  {/* Timing Information */}
+                  <div className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-200">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-sm font-medium">This may take up to 1 minute for comprehensive results</span>
                   </div>
                 </div>
                 
