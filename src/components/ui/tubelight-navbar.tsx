@@ -31,10 +31,15 @@ export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme,
   const { user, profile, loading, signInWithGoogle, signOut } = useAuth()
   const [showProfileMenu, setShowProfileMenu] = useState(false)
 
-  // Debug profile data
+  // Debug profile data and handle loading states
   useEffect(() => {
-    console.log('Profile data in navbar:', {profile, user})
-  }, [profile, user])
+    console.log('Profile data in navbar:', {profile, user, loading})
+    
+    // If user exists but profile is null and not loading, try to trigger profile fetch
+    if (user && !profile && !loading) {
+      console.log('User exists but profile is null, this might indicate a profile loading issue')
+    }
+  }, [profile, user, loading])
 
   useEffect(() => {
     const handleResize = () => {
@@ -255,7 +260,7 @@ export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme,
                   )}
                   {/* Debug info - moved to useEffect */}
                   <span className="hidden md:inline">
-                    {profile?.full_name || user?.email?.split('@')[0] || 'Profile'}
+                    {loading ? 'Loading...' : (profile?.full_name || user?.email?.split('@')[0] || 'Profile')}
                   </span>
                 </button>
                 
@@ -307,17 +312,23 @@ export function NavBar({ items, className, isDarkMode, comicTheme, exploreTheme,
                       </div>
                     </div>
                     <button
-                      onClick={() => {
-                        signOut()
-                        setShowProfileMenu(false)
+                      onClick={async () => {
+                        try {
+                          await signOut()
+                          setShowProfileMenu(false)
+                        } catch (error) {
+                          console.error('Sign out failed:', error)
+                          // Still close the menu even if sign out fails
+                          setShowProfileMenu(false)
+                        }
                       }}
-                                                   className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
-                               comicTheme
-                                 ? 'text-black hover:bg-orange-100'
-                                 : exploreTheme
-                                   ? 'text-gray-800 hover:bg-orange-100/60'
-                                   : 'text-gray-700 hover:bg-gray-100'
-                             }`}
+                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
+                        comicTheme
+                          ? 'text-black hover:bg-orange-100'
+                          : exploreTheme
+                            ? 'text-gray-800 hover:bg-orange-100/60'
+                            : 'text-gray-700 hover:bg-gray-100'
+                      }`}
                     >
                       <LogOut size={16} />
                       Sign Out

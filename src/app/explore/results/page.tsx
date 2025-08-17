@@ -280,10 +280,10 @@ function ExploreResultsContent() {
       setApiError(null);
       
       try {
-        console.log("Making API call to:", "https://itihas-explore-production.up.railway.app/explore");
+        console.log("Making API call to:", "http://localhost:8002/explore");
         console.log("Query:", searchTerm);
         
-        const res = await fetch("https://itihas-explore-production.up.railway.app/explore", {
+        const res = await fetch("http://localhost:8002/explore", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: searchTerm }),

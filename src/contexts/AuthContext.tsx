@@ -87,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
+      console.log('Fetching profile for user:', userId)
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -99,10 +100,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await createProfileFromAuth(userId)
       } else {
         setProfile(data)
-        console.log('Profile loaded:', data) // Debug log
+        console.log('Profile loaded successfully:', data) // Debug log
       }
     } catch (error) {
       console.error('Error fetching profile:', error)
+      // Try to create profile from auth data as fallback
+      await createProfileFromAuth(userId)
     } finally {
       setLoading(false)
     }
@@ -110,29 +113,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const createProfileFromAuth = async (userId: string) => {
     try {
+      console.log('Creating profile from auth data for user:', userId)
       // Get user data from auth.users and sync to public.users
       const { data: authUser } = await supabase.auth.getUser()
       if (authUser.user) {
         const metadata = authUser.user.user_metadata
+        const profileData = {
+          id: userId,
+          email: authUser.user.email,
+          full_name: metadata.full_name || metadata.name || authUser.user.email?.split('@')[0] || 'User',
+          avatar_url: metadata.avatar_url || metadata.picture || null
+        }
+        
+        console.log('Profile data to upsert:', profileData)
+        
         const { data: newProfile, error } = await supabase
           .from('users')
-          .upsert({
-            id: userId,
-            email: authUser.user.email,
-            full_name: metadata.full_name || metadata.name,
-            avatar_url: metadata.avatar_url || metadata.picture
-          })
+          .upsert(profileData)
           .select()
           .single()
 
         if (!error && newProfile) {
           setProfile(newProfile)
-          console.log('Profile created/updated:', newProfile) // Debug log
+          console.log('Profile created/updated successfully:', newProfile) // Debug log
+        } else {
+          console.error('Error upserting profile:', error)
+          // Set a basic profile from auth data even if database fails
+          setProfile({
+            id: userId,
+            email: authUser.user.email || '',
+            full_name: profileData.full_name,
+            avatar_url: profileData.avatar_url,
+            bio: null,
+            location: null,
+            username: null,
+            website: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
         }
       }
     } catch (error) {
       console.error('Error creating profile from auth:', error)
-    } finally {
+      // Set loading to false even if profile creation fails
       setLoading(false)
     }
   }
@@ -151,10 +174,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    setHasSignedOut(true) // Mark that user has explicitly signed out
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      console.error('Error signing out:', error)
+    try {
+      console.log('Starting sign out process...')
+      setHasSignedOut(true) // Mark that user has explicitly signed out
+      
+      // Clear profile data immediately
+      setProfile(null)
+      setUser(null)
+      setSession(null)
+      
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('Error signing out:', error)
+        throw error
+      }
+      
+      console.log('Sign out successful')
+      
+      // Force reload to clear any cached state
+      if (typeof window !== 'undefined') {
+        window.location.href = '/'
+      }
+    } catch (error) {
+      console.error('Sign out failed:', error)
+      // Even if there's an error, clear local state
+      setProfile(null)
+      setUser(null)
+      setSession(null)
       throw error
     }
   }
