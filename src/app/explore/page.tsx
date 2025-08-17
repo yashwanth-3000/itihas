@@ -4,7 +4,7 @@ import { NavBar } from '../../components/ui/tubelight-navbar';
 import { PromptInputBox } from '../../components/ui/ai-prompt-box';
 import { AnimatedTestimonials } from '../../components/ui';
 import VaporizeTextCycle, { Tag as VaporizeTag } from '../../components/ui/vaporize-text-cycle';
-import { Home, MessageCircle, User, Compass } from "lucide-react";
+import { Home, MessageCircle, User, Info } from "lucide-react";
 import { useState, useEffect } from "react";
 
 import { useRouter } from "next/navigation";
@@ -32,9 +32,8 @@ export default function ExplorePage() {
   const navItems = [
     { name: 'Home', url: '/', icon: Home },
     { name: 'Chat', url: '/chat', icon: MessageCircle },
-    { name: 'Explore', url: '/explore', icon: Compass },
     { name: 'Communities', url: '/explore/communities', icon: User },
-    { name: 'About', url: '/sharable-link', icon: User }
+    { name: 'About', url: '/about', icon: Info }
   ];
 
 

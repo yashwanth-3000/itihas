@@ -4,7 +4,7 @@ import { NavBar } from '../../../components/ui/tubelight-navbar';
 import { PlaceUploadForm } from '../../../components/ui/place-upload-form';
 import { useEffect } from "react";
 
-import { Home, MessageCircle, User, Compass, Plus, Star, MapPin, Filter, X, ArrowUp, ArrowDown, Search, ChevronUp, ChevronDown, CheckCircle, Flame, Award, Shield, Clock } from "lucide-react";
+import { Home, MessageCircle, User, Plus, Star, MapPin, Filter, X, ArrowUp, ArrowDown, Search, ChevronUp, ChevronDown, CheckCircle, Flame, Award, Shield, Clock, Info } from "lucide-react";
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -279,9 +279,8 @@ export default function CommunitiesPage() {
   const navItems = [
     { name: 'Home', url: '/', icon: Home },
     { name: 'Chat', url: '/chat', icon: MessageCircle },
-    { name: 'Explore', url: '/explore', icon: Compass },
     { name: 'Communities', url: '/explore/communities', icon: User },
-    { name: 'About', url: '/sharable-link', icon: User }
+    { name: 'About', url: '/about', icon: Info }
   ];
 
   const categories = [

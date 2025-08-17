@@ -2,7 +2,7 @@
 
 import { NavBar } from '../../../../components/ui/tubelight-navbar';
 
-import { Home, MessageCircle, User, Compass, MapPin, Calendar, ArrowUp, ArrowDown, ArrowLeft, Send, Map, Navigation, BookOpen, Megaphone } from "lucide-react";
+import { Home, MessageCircle, User, MapPin, Calendar, ArrowUp, ArrowDown, ArrowLeft, Send, Map, Navigation, BookOpen, Megaphone, Info } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
@@ -203,9 +203,8 @@ export default function PlaceDetailPage() {
   const navItems = [
     { name: 'Home', url: '/', icon: Home },
     { name: 'Chat', url: '/chat', icon: MessageCircle },
-    { name: 'Explore', url: '/explore', icon: Compass },
     { name: 'Communities', url: '/explore/communities', icon: User },
-    { name: 'About', url: '/sharable-link', icon: User }
+    { name: 'About', url: '/about', icon: Info }
   ];
 
   // Mock comments data

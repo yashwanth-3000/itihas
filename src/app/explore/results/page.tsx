@@ -2,7 +2,7 @@
 import { NavBar } from '../../../components/ui/tubelight-navbar';
 import { AnimatedTestimonials, GoogleStreetView } from '../../../components/ui';
 
-import { Home, MessageCircle, User, Compass, MapPin, ArrowRight, X } from "lucide-react";
+import { Home, MessageCircle, User, MapPin, ArrowRight, X, Info } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, Suspense, useRef } from "react";
 import type { Testimonial } from '../../../components/ui/animated-testimonials';
@@ -381,9 +381,8 @@ function ExploreResultsContent() {
   const navItems = [
     { name: "Home", url: "/", icon: Home },
     { name: "Chat", url: "/chat", icon: MessageCircle },
-    { name: "Explore", url: "/explore", icon: Compass },
     { name: "Communities", url: "/explore/communities", icon: User },
-    { name: "About", url: "/sharable-link", icon: User },
+    { name: "About", url: "/about", icon: Info },
   ] as const;
 
   return (
